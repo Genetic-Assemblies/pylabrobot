@@ -23,6 +23,7 @@ from typing import (
   Literal,
   Optional,
   Sequence,
+  Set,
   Tuple,
   TypeVar,
   Union,
@@ -393,10 +394,11 @@ class PipetteMeasurement:
 
   Attributes:
     channel: which channel, 0-indexed from the back.
-    lld_mode: how it searched for the liquid's surface first; OFF when it did not.
+    lld_mode: how it searched for the liquid's surface first; OFF when its search did not run,
+      including when the call failed before it.
     liquid_height: the surface it found, above the container's cavity bottom, in mm, as found:
       below 0 where the container sits lower than the model. None when it did not search, or
-      found no liquid.
+      searched and found no liquid (lld_mode then says how).
     tadm: the pressure curve of its stroke, when TADM was asked for and one was read back.
   """
 
@@ -5785,6 +5787,7 @@ class Pipettes:
     sent_floors: List[float],
     given_floors: Optional[Sequence[float]],
     found_heights: Optional[List[Optional[float]]] = None,
+    probed: Optional[Set[int]] = None,
   ) -> None:
     """Search for the liquid under the batch's searched jobs, and put what is found into the model.
 
@@ -5806,9 +5809,11 @@ class Pipettes:
         cavity bottom, unless the caller gave a floor.
       given_floors: the floors the caller gave, per job; None when none.
       found_heights: per job; written with each surface found, above the cavity bottom.
+      probed: given, the jobs whose search ran are added, whether or not it found liquid.
 
     Raises:
-      RuntimeError: No liquid found.
+      RuntimeError: No liquid found, naming every channel that found none. The surfaces the
+        others found are written first.
     """
     pairs = [(ch, job) for ch, job in zip(batch.channels, batch.indices) if job in searched]
     if not pairs:
@@ -5827,14 +5832,21 @@ class Pipettes:
       n_replicates=1,
       approach_speed=approach_speed,
     )
+    missing = []
     for channel, job in pairs:
+      if probed is not None:
+        probed.add(job)
       height = found[job][0]
       if height is None:
-        raise RuntimeError(f"channel {channel} found no liquid in {containers[job].name}")
+        missing.append(f"channel {channel} found no liquid in {containers[job].name}")
+      elif found_heights is not None:
+        found_heights[job] = round(height - z_cavity_bottom[job], 2)
+    if missing:
+      raise RuntimeError("; ".join(missing))
+    for channel, job in pairs:
+      height = cast(float, found[job][0])
       surfaces[job] = height
       above_bottom = round(height - z_cavity_bottom[job], 2)
-      if found_heights is not None:
-        found_heights[job] = above_bottom
       if above_bottom < 0:
         # The plate sits lower than the model: the floor sent follows the surface found, or the
         # firmware would hold the tip above it.
@@ -6754,13 +6766,14 @@ class Pipettes:
 
     channel_of = self._get_channel_of_each_container(n, use_channels)
     found_heights: List[Optional[float]] = [None] * n
+    probed: Set[int] = set()  # the jobs whose search ran, found or not
     curves: List[Optional[TADMCurve]] = [None] * n
 
     def measured() -> List[PipetteMeasurement]:
       return [
         PipetteMeasurement(
           channel=channel_of[job],
-          lld_mode=modes[job] if job in searched else self.LLDMode.OFF,
+          lld_mode=modes[job] if job in probed else self.LLDMode.OFF,
           liquid_height=found_heights[job],
           tadm=curves[job],
         )
@@ -6926,6 +6939,7 @@ class Pipettes:
         sent_floors=sent_floors,
         given_floors=given_floors,
         found_heights=found_heights,
+        probed=probed,
       )
 
     async def send(batch: ChannelBatch) -> None:
@@ -7618,13 +7632,14 @@ class Pipettes:
 
     channel_of = self._get_channel_of_each_container(n, use_channels)
     found_heights: List[Optional[float]] = [None] * n
+    probed: Set[int] = set()  # the jobs whose search ran, found or not
     curves: List[Optional[TADMCurve]] = [None] * n
 
     def measured() -> List[PipetteMeasurement]:
       return [
         PipetteMeasurement(
           channel=channel_of[job],
-          lld_mode=modes[job] if job in searched else self.LLDMode.OFF,
+          lld_mode=modes[job] if job in probed else self.LLDMode.OFF,
           liquid_height=found_heights[job],
           tadm=curves[job],
         )
@@ -7764,6 +7779,7 @@ class Pipettes:
         sent_floors=sent_floors,
         given_floors=given_floors,
         found_heights=found_heights,
+        probed=probed,
       )
       # The search may have found more liquid than the model had: the room is checked again.
       found = [(ch, job) for ch, job in zip(batch.channels, batch.indices) if job in searched]

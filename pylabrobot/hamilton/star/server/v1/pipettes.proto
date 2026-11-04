@@ -86,10 +86,12 @@ message TADMCurve {
 message PipetteMeasurement {
   // Which channel, 0-indexed from the back.
   int32 channel = 1;
-  // How it searched for the liquid's surface first; OFF when it did not.
+  // How it searched for the liquid's surface first; OFF when its search did not run, including
+  // when the call failed before it.
   LLDMode lld_mode = 2;
   // The surface it found, above the container's cavity bottom, in mm, as found: below 0 where the
-  // container sits lower than the model. Unset when it did not search, or found no liquid.
+  // container sits lower than the model. Unset when it did not search, or searched and found no
+  // liquid (lld_mode then says how).
   optional double liquid_height = 3;
   // The pressure curve of its stroke, when TADM was asked for and one was read back.
   TADMCurve tadm = 4;

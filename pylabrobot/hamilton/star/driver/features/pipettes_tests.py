@@ -4820,3 +4820,30 @@ class TestMeasurementsInSimulation(_SimulatedPlateWithWater):
     self.assertIsNotNone(measured[0].liquid_height)
     self.assertIsNone(measured[1].liquid_height)
     self.assertEqual([m.lld_mode for m in measured], [Pipettes.LLDMode.CAPACITIVE] * 2)
+
+  async def test_a_search_that_finds_nothing_keeps_what_the_others_found(self):
+    # A1, on the first channel, is emptied; D1's surface, found in the same search, is kept.
+    await self.wells[0].set_volume(0.0)
+    await self.wells[3].set_volume(80.0)
+    with self.assertRaises(RuntimeError) as caught:
+      await self.pipettes.aspirate(
+        [self.wells[0], self.wells[3]], [10.0, 10.0], lld_mode=Pipettes.LLDMode.CAPACITIVE
+      )
+    self.assertIn("channel 0 found no liquid", str(caught.exception))
+    measured = caught.exception.measurements  # type: ignore[attr-defined]
+    self.assertEqual([m.lld_mode for m in measured], [Pipettes.LLDMode.CAPACITIVE] * 2)
+    self.assertIsNone(measured[0].liquid_height)
+    self.assertIsNotNone(measured[1].liquid_height)
+
+  async def test_a_search_that_never_ran_says_so(self):
+    # D1 on the back channel and A1 behind it on the next cannot go down together: two batches,
+    # and the second's search never runs once the first finds nothing.
+    with self.assertRaises(RuntimeError) as caught:
+      await self.pipettes.aspirate(
+        [self.wells[3], self.wells[0]], [10.0, 10.0], lld_mode=Pipettes.LLDMode.CAPACITIVE
+      )
+    measured = caught.exception.measurements  # type: ignore[attr-defined]
+    self.assertEqual(
+      [m.lld_mode for m in measured], [Pipettes.LLDMode.CAPACITIVE, Pipettes.LLDMode.OFF]
+    )
+    self.assertEqual([m.liquid_height for m in measured], [None, None])
