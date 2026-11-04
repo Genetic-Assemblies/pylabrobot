@@ -55,6 +55,7 @@ from pylabrobot.hamilton.star.driver.features.iswap import iSWAPWristPositions
 from pylabrobot.hamilton.star.driver.features.iswap import iSWAPYPositions
 from pylabrobot.hamilton.star.driver.features.iswap import iSWAPZPositions
 from pylabrobot.hamilton.star.driver.features.pipettes import PipetteConfiguration
+from pylabrobot.hamilton.star.driver.features.pipettes import PipetteMeasurement
 from pylabrobot.hamilton.star.driver.features.pipettes import Pipettes
 from pylabrobot.hamilton.star.driver.features.pipettes import PipettesConfiguration
 from pylabrobot.hamilton.star.driver.features.pipettes import TADMCurve
@@ -1075,7 +1076,7 @@ def _fill_Int32List_56(message: types_pb2.Int32List, value: Sequence[int]) -> No
     message.values.append(int(item_57))
 
 
-def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, blow_out_air_volumes: Optional[Sequence[float]], immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], pre_wetting_volumes: Optional[Sequence[float]], pre_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], clot_detection_heights: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesAspirateRequest:
+def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, blow_out_air_volumes: Optional[Sequence[float]], immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], pre_wetting_volumes: Optional[Sequence[float]], pre_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], clot_detection_heights: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], tadm: bool, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesAspirateRequest:
   """A call to Pipettes.aspirate, as its request."""
   request = pipettes_pb2.PipettesAspirateRequest()
   for item_31 in containers:
@@ -1163,6 +1164,7 @@ def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container],
   if limit_curve_indices is not None:
     request.limit_curve_indices.SetInParent()
     _fill_Int32List_56(request.limit_curve_indices, limit_curve_indices)
+  request.tadm = bool(tadm)
   if minimum_traverse_height_start is not None:
     request.minimum_traverse_height_start = float(minimum_traverse_height_start)
   if minimum_traverse_height_during is not None:
@@ -1255,7 +1257,7 @@ def _read_Int32List_82(message: types_pb2.Int32List, refs: wire.Refs) -> Sequenc
   return [item_83 for item_83 in message.values]
 
 
-async def call_pipettes_aspirate(target: Pipettes, request: pipettes_pb2.PipettesAspirateRequest, refs: wire.Refs) -> None:
+async def call_pipettes_aspirate(target: Pipettes, request: pipettes_pb2.PipettesAspirateRequest, refs: wire.Refs) -> List[PipetteMeasurement]:
   """The call to Pipettes.aspirate a request asks for."""
   a_containers: Sequence[handles.Container]
   a_containers = [wire.handle(refs, item_58, Container) for item_58 in request.containers]
@@ -1402,6 +1404,11 @@ async def call_pipettes_aspirate(target: Pipettes, request: pipettes_pb2.Pipette
     a_limit_curve_indices = _read_Int32List_82(request.limit_curve_indices, refs)
   else:
     a_limit_curve_indices = None
+  a_tadm: bool
+  if request.HasField('tadm'):
+    a_tadm = request.tadm
+  else:
+    a_tadm = False
   a_minimum_traverse_height_start: Optional[float]
   if request.HasField('minimum_traverse_height_start'):
     a_minimum_traverse_height_start = request.minimum_traverse_height_start
@@ -1422,19 +1429,65 @@ async def call_pipettes_aspirate(target: Pipettes, request: pipettes_pb2.Pipette
     a_x_grouping_tolerance = request.x_grouping_tolerance
   else:
     a_x_grouping_tolerance = None
-  return await target.aspirate(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, blow_out_air_volumes=a_blow_out_air_volumes, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, pre_wetting_volumes=a_pre_wetting_volumes, pre_mixes=a_pre_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, settling_times=a_settling_times, swap_speeds=a_swap_speeds, clot_detection_heights=a_clot_detection_heights, pull_out_distances_transport_air=a_pull_out_distances_transport_air, transport_air_volumes=a_transport_air_volumes, limit_curve_indices=a_limit_curve_indices, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance)
+  return await target.aspirate(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, blow_out_air_volumes=a_blow_out_air_volumes, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, pre_wetting_volumes=a_pre_wetting_volumes, pre_mixes=a_pre_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, settling_times=a_settling_times, swap_speeds=a_swap_speeds, clot_detection_heights=a_clot_detection_heights, pull_out_distances_transport_air=a_pull_out_distances_transport_air, transport_air_volumes=a_transport_air_volumes, limit_curve_indices=a_limit_curve_indices, tadm=a_tadm, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance)
 
 
-def encode_pipettes_aspirate_response(value: None) -> pipettes_pb2.PipettesAspirateResponse:
+# pylabrobot.hamilton.star.server.v1.TADMOperation's values, by their names' suffixes.
+_ENUM_87: Dict[str, types_pb2.TADMOperation] = {'UNSPECIFIED': types_pb2.TADM_OPERATION_UNSPECIFIED, 'ASPIRATE': types_pb2.TADM_OPERATION_ASPIRATE, 'DISPENSE': types_pb2.TADM_OPERATION_DISPENSE, 'OTHER': types_pb2.TADM_OPERATION_OTHER}
+
+
+def _fill_TADMCurve_86(message: pipettes_pb2.TADMCurve, value: TADMCurve) -> None:
+  message.measurement_id = wire.text(value.measurement_id)
+  message.operation = wire.enum_number(_ENUM_87, 'TADMOperation', value.operation)
+  message.had_error = bool(value.had_error)
+  for item_88 in value.pressures:
+    message.pressures.append(int(item_88))
+
+
+def _fill_PipetteMeasurement_85(message: pipettes_pb2.PipetteMeasurement, value: PipetteMeasurement) -> None:
+  message.channel = int(value.channel)
+  message.lld_mode = wire.enum_number(_ENUM_41, 'LLDMode', value.lld_mode)
+  if value.liquid_height is not None:
+    message.liquid_height = float(value.liquid_height)
+  if value.tadm is not None:
+    message.tadm.SetInParent()
+    _fill_TADMCurve_86(message.tadm, value.tadm)
+
+
+# What pylabrobot.hamilton.star.server.v1.TADMOperation's numbers are, as Literal['aspirate', 'dispense', 'other'].
+_VALUES_92: Dict[int, Literal['aspirate', 'dispense', 'other']] = {1: 'aspirate', 2: 'dispense', 3: 'other'}
+
+
+def _read_TADMCurve_91(message: pipettes_pb2.TADMCurve, refs: wire.Refs) -> TADMCurve:
+  return TADMCurve(
+    measurement_id=message.measurement_id,
+    operation=_VALUES_92[message.operation],
+    had_error=message.had_error,
+    pressures=[item_93 for item_93 in message.pressures],
+  )
+
+
+def _read_PipetteMeasurement_90(message: pipettes_pb2.PipetteMeasurement, refs: wire.Refs) -> PipetteMeasurement:
+  return PipetteMeasurement(
+    channel=message.channel,
+    lld_mode=_VALUES_69[message.lld_mode],
+    liquid_height=(message.liquid_height if message.HasField('liquid_height') else None),
+    tadm=(_read_TADMCurve_91(message.tadm, refs) if message.HasField('tadm') else None),
+  )
+
+
+def encode_pipettes_aspirate_response(value: List[PipetteMeasurement]) -> pipettes_pb2.PipettesAspirateResponse:
   """What Pipettes.aspirate returned, as its response."""
   response = pipettes_pb2.PipettesAspirateResponse()
+  for item_84 in value:
+    _fill_PipetteMeasurement_85(response.measurements.add(), item_84)
   return response
 
 
-def decode_pipettes_aspirate_response(response: pipettes_pb2.PipettesAspirateResponse) -> None:
+def decode_pipettes_aspirate_response(response: pipettes_pb2.PipettesAspirateResponse) -> List[PipetteMeasurement]:
   """What Pipettes.aspirate returned, from its response."""
   refs: wire.Refs = {}
-  return None
+  return [_read_PipetteMeasurement_90(item_89, refs) for item_89 in response.measurements]
 
 
 def encode_pipettes_auto_adjust_pressure_sensor_request(*, channel: int) -> pipettes_pb2.PipettesAutoAdjustPressureSensorRequest:
@@ -1492,8 +1545,8 @@ def decode_pipettes_clear_tadm_fifo_response(response: pipettes_pb2.PipettesClea
 def encode_pipettes_consolidate_tip_inventory_request(*, tip_racks: List[handles.TipRack], use_channels: Optional[List[int]]) -> pipettes_pb2.PipettesConsolidateTipInventoryRequest:
   """A call to Pipettes.consolidate_tip_inventory, as its request."""
   request = pipettes_pb2.PipettesConsolidateTipInventoryRequest()
-  for item_84 in tip_racks:
-    wire.fill_ref(request.tip_racks.add(), item_84)
+  for item_94 in tip_racks:
+    wire.fill_ref(request.tip_racks.add(), item_94)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -1503,7 +1556,7 @@ def encode_pipettes_consolidate_tip_inventory_request(*, tip_racks: List[handles
 async def call_pipettes_consolidate_tip_inventory(target: Pipettes, request: pipettes_pb2.PipettesConsolidateTipInventoryRequest, refs: wire.Refs) -> None:
   """The call to Pipettes.consolidate_tip_inventory a request asks for."""
   a_tip_racks: List[handles.TipRack]
-  a_tip_racks = [wire.handle(refs, item_85, TipRack) for item_85 in request.tip_racks]
+  a_tip_racks = [wire.handle(refs, item_95, TipRack) for item_95 in request.tip_racks]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -1525,7 +1578,7 @@ def decode_pipettes_consolidate_tip_inventory_response(response: pipettes_pb2.Pi
 
 
 # pylabrobot.hamilton.star.server.v1.TipDropMethod's values, by their names' suffixes.
-_ENUM_88: Dict[str, types_pb2.TipDropMethod] = {'UNSPECIFIED': types_pb2.TIP_DROP_METHOD_UNSPECIFIED, 'PLACE_SHIFT': types_pb2.TIP_DROP_METHOD_PLACE_SHIFT, 'DROP': types_pb2.TIP_DROP_METHOD_DROP}
+_ENUM_98: Dict[str, types_pb2.TipDropMethod] = {'UNSPECIFIED': types_pb2.TIP_DROP_METHOD_UNSPECIFIED, 'PLACE_SHIFT': types_pb2.TIP_DROP_METHOD_PLACE_SHIFT, 'DROP': types_pb2.TIP_DROP_METHOD_DROP}
 
 
 def encode_pipettes_discard_tips_request(*, use_channels: Optional[List[int]], offsets: Optional[List[Coordinate]], kwargs: Dict[str, Any]) -> pipettes_pb2.PipettesDiscardTipsRequest:
@@ -1537,40 +1590,40 @@ def encode_pipettes_discard_tips_request(*, use_channels: Optional[List[int]], o
   if offsets is not None:
     request.offsets.SetInParent()
     _fill_Vec3List_36(request.offsets, offsets)
-  for key_86, item_87 in kwargs.items():
-    if key_86 == 'use_channels':
-      if item_87 is not None:
+  for key_96, item_97 in kwargs.items():
+    if key_96 == 'use_channels':
+      if item_97 is not None:
         request.use_channels.SetInParent()
-        _fill_Int32List_34(request.use_channels, item_87)
-    elif key_86 == 'offsets':
-      if item_87 is not None:
+        _fill_Int32List_34(request.use_channels, item_97)
+    elif key_96 == 'offsets':
+      if item_97 is not None:
         request.offsets.SetInParent()
-        _fill_Vec3List_36(request.offsets, item_87)
-    elif key_86 == 'drop_method':
-      if item_87 is not None:
-        request.drop_method = wire.enum_number(_ENUM_88, 'TipDropMethod', item_87)
-    elif key_86 == 'begin_tip_deposit_process':
-      if item_87 is not None:
-        request.begin_tip_deposit_process = float(item_87)
-    elif key_86 == 'end_tip_deposit_process':
-      if item_87 is not None:
-        request.end_tip_deposit_process = float(item_87)
-    elif key_86 == 'minimum_traverse_height_start':
-      if item_87 is not None:
-        request.minimum_traverse_height_start = float(item_87)
-    elif key_86 == 'minimum_traverse_height_end':
-      if item_87 is not None:
-        request.minimum_traverse_height_end = float(item_87)
-    elif key_86 == 'x_tolerance':
-      if item_87 is not None:
-        request.x_tolerance = float(item_87)
+        _fill_Vec3List_36(request.offsets, item_97)
+    elif key_96 == 'drop_method':
+      if item_97 is not None:
+        request.drop_method = wire.enum_number(_ENUM_98, 'TipDropMethod', item_97)
+    elif key_96 == 'begin_tip_deposit_process':
+      if item_97 is not None:
+        request.begin_tip_deposit_process = float(item_97)
+    elif key_96 == 'end_tip_deposit_process':
+      if item_97 is not None:
+        request.end_tip_deposit_process = float(item_97)
+    elif key_96 == 'minimum_traverse_height_start':
+      if item_97 is not None:
+        request.minimum_traverse_height_start = float(item_97)
+    elif key_96 == 'minimum_traverse_height_end':
+      if item_97 is not None:
+        request.minimum_traverse_height_end = float(item_97)
+    elif key_96 == 'x_tolerance':
+      if item_97 is not None:
+        request.x_tolerance = float(item_97)
     else:
-      raise TypeError(f"discard_tips() got an unexpected keyword argument '{key_86}'")
+      raise TypeError(f"discard_tips() got an unexpected keyword argument '{key_96}'")
   return request
 
 
 # What pylabrobot.hamilton.star.server.v1.TipDropMethod's numbers are, as TipDropMethod.
-_VALUES_89: Dict[int, TipDropMethod] = {1: TipDropMethod.PLACE_SHIFT, 2: TipDropMethod.DROP}
+_VALUES_99: Dict[int, TipDropMethod] = {1: TipDropMethod.PLACE_SHIFT, 2: TipDropMethod.DROP}
 
 
 async def call_pipettes_discard_tips(target: Pipettes, request: pipettes_pb2.PipettesDiscardTipsRequest, refs: wire.Refs) -> None:
@@ -1587,7 +1640,7 @@ async def call_pipettes_discard_tips(target: Pipettes, request: pipettes_pb2.Pip
     a_offsets = None
   extra: Dict[str, Any] = {}
   if request.HasField('drop_method'):
-    extra['drop_method'] = _VALUES_89[request.drop_method]
+    extra['drop_method'] = _VALUES_99[request.drop_method]
   if request.HasField('begin_tip_deposit_process'):
     extra['begin_tip_deposit_process'] = request.begin_tip_deposit_process
   if request.HasField('end_tip_deposit_process'):
@@ -1636,11 +1689,11 @@ def decode_pipettes_discover_response(response: pipettes_pb2.PipettesDiscoverRes
   return None
 
 
-def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], empty: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, side_touch_off_distance: float, immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], cut_off_speeds: Optional[Sequence[float]], stop_back_volumes: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], blow_out_air_volumes: Optional[Sequence[float]], post_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesDispenseRequest:
+def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], empty: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, side_touch_off_distance: float, immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], cut_off_speeds: Optional[Sequence[float]], stop_back_volumes: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], blow_out_air_volumes: Optional[Sequence[float]], post_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], tadm: bool, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesDispenseRequest:
   """A call to Pipettes.dispense, as its request."""
   request = pipettes_pb2.PipettesDispenseRequest()
-  for item_90 in containers:
-    wire.fill_ref(request.containers.add(), item_90)
+  for item_100 in containers:
+    wire.fill_ref(request.containers.add(), item_100)
   if volumes is not None:
     request.volumes.SetInParent()
     _fill_DoubleList_32(request.volumes, volumes)
@@ -1728,6 +1781,7 @@ def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container],
   if limit_curve_indices is not None:
     request.limit_curve_indices.SetInParent()
     _fill_Int32List_56(request.limit_curve_indices, limit_curve_indices)
+  request.tadm = bool(tadm)
   if minimum_traverse_height_start is not None:
     request.minimum_traverse_height_start = float(minimum_traverse_height_start)
   if minimum_traverse_height_during is not None:
@@ -1739,10 +1793,10 @@ def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container],
   return request
 
 
-async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.PipettesDispenseRequest, refs: wire.Refs) -> None:
+async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.PipettesDispenseRequest, refs: wire.Refs) -> List[PipetteMeasurement]:
   """The call to Pipettes.dispense a request asks for."""
   a_containers: Sequence[handles.Container]
-  a_containers = [wire.handle(refs, item_91, Container) for item_91 in request.containers]
+  a_containers = [wire.handle(refs, item_101, Container) for item_101 in request.containers]
   a_volumes: Optional[Sequence[float]]
   if request.HasField('volumes'):
     a_volumes = _read_DoubleList_59(request.volumes, refs)
@@ -1764,10 +1818,10 @@ async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.Pipette
   else:
     a_liquid_heights = None
   a_lld_mode: Union[LLDMode, Sequence[LLDMode], None]
-  which_92 = request.WhichOneof('lld_mode')
-  if which_92 == 'lld_mode_lldmode':
+  which_102 = request.WhichOneof('lld_mode')
+  if which_102 == 'lld_mode_lldmode':
     a_lld_mode = _VALUES_69[request.lld_mode_lldmode]
-  elif which_92 == 'lld_mode_each':
+  elif which_102 == 'lld_mode_each':
     a_lld_mode = _read_LLDModeList_70(request.lld_mode_each, refs)
   else:
     a_lld_mode = None
@@ -1896,6 +1950,11 @@ async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.Pipette
     a_limit_curve_indices = _read_Int32List_82(request.limit_curve_indices, refs)
   else:
     a_limit_curve_indices = None
+  a_tadm: bool
+  if request.HasField('tadm'):
+    a_tadm = request.tadm
+  else:
+    a_tadm = False
   a_minimum_traverse_height_start: Optional[float]
   if request.HasField('minimum_traverse_height_start'):
     a_minimum_traverse_height_start = request.minimum_traverse_height_start
@@ -1916,19 +1975,21 @@ async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.Pipette
     a_x_grouping_tolerance = request.x_grouping_tolerance
   else:
     a_x_grouping_tolerance = None
-  return await target.dispense(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, empty=a_empty, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, side_touch_off_distance=a_side_touch_off_distance, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, transport_air_volumes=a_transport_air_volumes, cut_off_speeds=a_cut_off_speeds, stop_back_volumes=a_stop_back_volumes, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, blow_out_air_volumes=a_blow_out_air_volumes, post_mixes=a_post_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, settling_times=a_settling_times, swap_speeds=a_swap_speeds, pull_out_distances_transport_air=a_pull_out_distances_transport_air, limit_curve_indices=a_limit_curve_indices, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance)
+  return await target.dispense(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, empty=a_empty, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, side_touch_off_distance=a_side_touch_off_distance, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, transport_air_volumes=a_transport_air_volumes, cut_off_speeds=a_cut_off_speeds, stop_back_volumes=a_stop_back_volumes, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, blow_out_air_volumes=a_blow_out_air_volumes, post_mixes=a_post_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, settling_times=a_settling_times, swap_speeds=a_swap_speeds, pull_out_distances_transport_air=a_pull_out_distances_transport_air, limit_curve_indices=a_limit_curve_indices, tadm=a_tadm, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance)
 
 
-def encode_pipettes_dispense_response(value: None) -> pipettes_pb2.PipettesDispenseResponse:
+def encode_pipettes_dispense_response(value: List[PipetteMeasurement]) -> pipettes_pb2.PipettesDispenseResponse:
   """What Pipettes.dispense returned, as its response."""
   response = pipettes_pb2.PipettesDispenseResponse()
+  for item_103 in value:
+    _fill_PipetteMeasurement_85(response.measurements.add(), item_103)
   return response
 
 
-def decode_pipettes_dispense_response(response: pipettes_pb2.PipettesDispenseResponse) -> None:
+def decode_pipettes_dispense_response(response: pipettes_pb2.PipettesDispenseResponse) -> List[PipetteMeasurement]:
   """What Pipettes.dispense returned, from its response."""
   refs: wire.Refs = {}
-  return None
+  return [_read_PipetteMeasurement_90(item_104, refs) for item_104 in response.measurements]
 
 
 def encode_pipettes_dispensing_drive_move_to_uL_position_request(*, channel: int, position: float, flow_rate: float, acceleration: float, current_limit: int) -> pipettes_pb2.PipettesDispensingDriveMoveToULPositionRequest:
@@ -2027,18 +2088,18 @@ async def call_pipettes_dispensing_drives_request_uL_positions(target: Pipettes,
 def encode_pipettes_dispensing_drives_request_uL_positions_response(value: List[Union[float, None]]) -> pipettes_pb2.PipettesDispensingDrivesRequestULPositionsResponse:
   """What Pipettes.dispensing_drives_request_uL_positions returned, as its response."""
   response = pipettes_pb2.PipettesDispensingDrivesRequestULPositionsResponse()
-  for item_93 in value:
-    _fill_OptionalDouble_40(response.positions.add(), item_93)
+  for item_105 in value:
+    _fill_OptionalDouble_40(response.positions.add(), item_105)
   return response
 
 
 def decode_pipettes_dispensing_drives_request_uL_positions_response(response: pipettes_pb2.PipettesDispensingDrivesRequestULPositionsResponse) -> List[Union[float, None]]:
   """What Pipettes.dispensing_drives_request_uL_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [_read_OptionalDouble_67(item_94, refs) for item_94 in response.positions]
+  return [_read_OptionalDouble_67(item_106, refs) for item_106 in response.positions]
 
 
-def _fill_TipDestination_96(message: types_pb2.TipDestination, value: Union[TipSpot, Trash, Coordinate]) -> None:
+def _fill_TipDestination_108(message: types_pb2.TipDestination, value: Union[TipSpot, Trash, Coordinate]) -> None:
   if (isinstance(value, Resource)):
     message.resource.SetInParent()
     wire.fill_ref(message.resource, value)
@@ -2053,8 +2114,8 @@ def _fill_TipDestination_96(message: types_pb2.TipDestination, value: Union[TipS
 def encode_pipettes_drop_tips_request(*, destinations: Sequence[Union[handles.TipSpot, handles.Trash, Coordinate]], use_channels: Optional[List[int]], offsets: Optional[List[Coordinate]], drop_method: Optional[TipDropMethod], begin_tip_deposit_process: Optional[float], end_tip_deposit_process: Optional[float], minimum_traverse_height_start: Optional[float], minimum_traverse_height_end: Optional[float], x_tolerance: Optional[float]) -> pipettes_pb2.PipettesDropTipsRequest:
   """A call to Pipettes.drop_tips, as its request."""
   request = pipettes_pb2.PipettesDropTipsRequest()
-  for item_95 in destinations:
-    _fill_TipDestination_96(request.destinations.add(), item_95)
+  for item_107 in destinations:
+    _fill_TipDestination_108(request.destinations.add(), item_107)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -2062,7 +2123,7 @@ def encode_pipettes_drop_tips_request(*, destinations: Sequence[Union[handles.Ti
     request.offsets.SetInParent()
     _fill_Vec3List_36(request.offsets, offsets)
   if drop_method is not None:
-    request.drop_method = wire.enum_number(_ENUM_88, 'TipDropMethod', drop_method)
+    request.drop_method = wire.enum_number(_ENUM_98, 'TipDropMethod', drop_method)
   if begin_tip_deposit_process is not None:
     request.begin_tip_deposit_process = float(begin_tip_deposit_process)
   if end_tip_deposit_process is not None:
@@ -2076,7 +2137,7 @@ def encode_pipettes_drop_tips_request(*, destinations: Sequence[Union[handles.Ti
   return request
 
 
-def _read_TipDestination_98(message: types_pb2.TipDestination, refs: wire.Refs) -> Union[TipSpot, Trash, Coordinate, None]:
+def _read_TipDestination_110(message: types_pb2.TipDestination, refs: wire.Refs) -> Union[TipSpot, Trash, Coordinate, None]:
   which = message.WhichOneof('tip_destination')
   if which is None:
     return None
@@ -2087,8 +2148,8 @@ def _read_TipDestination_98(message: types_pb2.TipDestination, refs: wire.Refs) 
   raise TypeError("no way to read Union[TipSpot, Trash, Coordinate] from pylabrobot.hamilton.star.server.v1.TipDestination")
 
 
-def _read_TipDestination_98_given(message: types_pb2.TipDestination, refs: wire.Refs) -> Union[TipSpot, Trash, Coordinate]:
-  value = _read_TipDestination_98(message, refs)
+def _read_TipDestination_110_given(message: types_pb2.TipDestination, refs: wire.Refs) -> Union[TipSpot, Trash, Coordinate]:
+  value = _read_TipDestination_110(message, refs)
   if value is None:
     raise ValueError("a pylabrobot.hamilton.star.server.v1.TipDestination that must hold a value holds none")
   return value
@@ -2097,7 +2158,7 @@ def _read_TipDestination_98_given(message: types_pb2.TipDestination, refs: wire.
 async def call_pipettes_drop_tips(target: Pipettes, request: pipettes_pb2.PipettesDropTipsRequest, refs: wire.Refs) -> None:
   """The call to Pipettes.drop_tips a request asks for."""
   a_destinations: Sequence[Union[handles.TipSpot, handles.Trash, Coordinate]]
-  a_destinations = [_read_TipDestination_98_given(item_97, refs) for item_97 in request.destinations]
+  a_destinations = [_read_TipDestination_110_given(item_109, refs) for item_109 in request.destinations]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -2110,7 +2171,7 @@ async def call_pipettes_drop_tips(target: Pipettes, request: pipettes_pb2.Pipett
     a_offsets = None
   a_drop_method: Optional[TipDropMethod]
   if request.HasField('drop_method'):
-    a_drop_method = _VALUES_89[request.drop_method]
+    a_drop_method = _VALUES_99[request.drop_method]
   else:
     a_drop_method = None
   a_begin_tip_deposit_process: Optional[float]
@@ -2312,28 +2373,28 @@ async def call_pipettes_get_mounted_tips(target: Pipettes, request: pipettes_pb2
   return await target.get_mounted_tips()
 
 
-def _fill_OptionalResourceNode_100(message: types_pb2.OptionalResourceNode, value: Union[ResourceNode, None]) -> None:
+def _fill_OptionalResourceNode_112(message: types_pb2.OptionalResourceNode, value: Union[ResourceNode, None]) -> None:
   if value is not None:
     message.value.SetInParent()
     wire.fill_node(message.value, value)
 
 
-def _read_OptionalResourceNode_102(message: types_pb2.OptionalResourceNode, refs: wire.Refs) -> Union[ResourceNode, None]:
+def _read_OptionalResourceNode_114(message: types_pb2.OptionalResourceNode, refs: wire.Refs) -> Union[ResourceNode, None]:
   return (wire.read_node(message.value, refs) if message.HasField('value') else None)
 
 
 def encode_pipettes_get_mounted_tips_response(value: List[Union[ResourceNode, None]]) -> pipettes_pb2.PipettesGetMountedTipsResponse:
   """What Pipettes.get_mounted_tips returned, as its response."""
   response = pipettes_pb2.PipettesGetMountedTipsResponse()
-  for item_99 in value:
-    _fill_OptionalResourceNode_100(response.mounted_tips.add(), item_99)
+  for item_111 in value:
+    _fill_OptionalResourceNode_112(response.mounted_tips.add(), item_111)
   return response
 
 
 def decode_pipettes_get_mounted_tips_response(response: pipettes_pb2.PipettesGetMountedTipsResponse) -> List[Union[ResourceNode, None]]:
   """What Pipettes.get_mounted_tips returned, from its response."""
   refs: wire.Refs = {}
-  return [_read_OptionalResourceNode_102(item_101, refs) for item_101 in response.mounted_tips]
+  return [_read_OptionalResourceNode_114(item_113, refs) for item_113 in response.mounted_tips]
 
 
 def encode_pipettes_get_piston_positions_request() -> pipettes_pb2.PipettesGetPistonPositionsRequest:
@@ -2350,15 +2411,15 @@ async def call_pipettes_get_piston_positions(target: Pipettes, request: pipettes
 def encode_pipettes_get_piston_positions_response(value: List[float]) -> pipettes_pb2.PipettesGetPistonPositionsResponse:
   """What Pipettes.get_piston_positions returned, as its response."""
   response = pipettes_pb2.PipettesGetPistonPositionsResponse()
-  for item_103 in value:
-    response.piston_positions.append(float(item_103))
+  for item_115 in value:
+    response.piston_positions.append(float(item_115))
   return response
 
 
 def decode_pipettes_get_piston_positions_response(response: pipettes_pb2.PipettesGetPistonPositionsResponse) -> List[float]:
   """What Pipettes.get_piston_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_104 for item_104 in response.piston_positions]
+  return [item_116 for item_116 in response.piston_positions]
 
 
 def encode_pipettes_get_reference_point_location_request(*, channel: int) -> pipettes_pb2.PipettesGetReferencePointLocationRequest:
@@ -2401,28 +2462,28 @@ async def call_pipettes_get_reference_point_locations(target: Pipettes, request:
   return await target.get_reference_point_locations()
 
 
-def _fill_OptionalVec3_106(message: types_pb2.OptionalVec3, value: Union[Coordinate, None]) -> None:
+def _fill_OptionalVec3_118(message: types_pb2.OptionalVec3, value: Union[Coordinate, None]) -> None:
   if value is not None:
     message.value.SetInParent()
     wire.fill_xyz(message.value, value)
 
 
-def _read_OptionalVec3_108(message: types_pb2.OptionalVec3, refs: wire.Refs) -> Union[Coordinate, None]:
+def _read_OptionalVec3_120(message: types_pb2.OptionalVec3, refs: wire.Refs) -> Union[Coordinate, None]:
   return (wire.read_vec3(message.value, refs) if message.HasField('value') else None)
 
 
 def encode_pipettes_get_reference_point_locations_response(value: List[Union[Coordinate, None]]) -> pipettes_pb2.PipettesGetReferencePointLocationsResponse:
   """What Pipettes.get_reference_point_locations returned, as its response."""
   response = pipettes_pb2.PipettesGetReferencePointLocationsResponse()
-  for item_105 in value:
-    _fill_OptionalVec3_106(response.reference_point_locations.add(), item_105)
+  for item_117 in value:
+    _fill_OptionalVec3_118(response.reference_point_locations.add(), item_117)
   return response
 
 
 def decode_pipettes_get_reference_point_locations_response(response: pipettes_pb2.PipettesGetReferencePointLocationsResponse) -> List[Union[Coordinate, None]]:
   """What Pipettes.get_reference_point_locations returned, from its response."""
   refs: wire.Refs = {}
-  return [_read_OptionalVec3_108(item_107, refs) for item_107 in response.reference_point_locations]
+  return [_read_OptionalVec3_120(item_119, refs) for item_119 in response.reference_point_locations]
 
 
 def encode_pipettes_get_tools_request() -> pipettes_pb2.PipettesGetToolsRequest:
@@ -2439,20 +2500,20 @@ async def call_pipettes_get_tools(target: Pipettes, request: pipettes_pb2.Pipett
 def encode_pipettes_get_tools_response(value: List[Union[ResourceNode, None]]) -> pipettes_pb2.PipettesGetToolsResponse:
   """What Pipettes.get_tools returned, as its response."""
   response = pipettes_pb2.PipettesGetToolsResponse()
-  for item_109 in value:
-    _fill_OptionalResourceNode_100(response.tools.add(), item_109)
+  for item_121 in value:
+    _fill_OptionalResourceNode_112(response.tools.add(), item_121)
   return response
 
 
 def decode_pipettes_get_tools_response(response: pipettes_pb2.PipettesGetToolsResponse) -> List[Union[ResourceNode, None]]:
   """What Pipettes.get_tools returned, from its response."""
   refs: wire.Refs = {}
-  return [_read_OptionalResourceNode_102(item_110, refs) for item_110 in response.tools]
+  return [_read_OptionalResourceNode_114(item_122, refs) for item_122 in response.tools]
 
 
-def _fill_DoubleList_111(message: types_pb2.DoubleList, value: List[float]) -> None:
-  for item_112 in value:
-    message.values.append(float(item_112))
+def _fill_DoubleList_123(message: types_pb2.DoubleList, value: List[float]) -> None:
+  for item_124 in value:
+    message.values.append(float(item_124))
 
 
 def encode_pipettes_initialize_request(*, x_position: Optional[float], y_positions: Optional[List[float]], begin_of_tip_deposit_process: Optional[float], end_of_tip_deposit_process: Optional[float], minimum_traverse_height_end: Optional[float], tip_pattern: Optional[List[bool]], tip_type: Optional[int], discarding_method: Optional[int], z_position_at_end_of_a_command: Optional[float]) -> pipettes_pb2.PipettesInitializeRequest:
@@ -2462,7 +2523,7 @@ def encode_pipettes_initialize_request(*, x_position: Optional[float], y_positio
     request.x_position = float(x_position)
   if y_positions is not None:
     request.y_positions.SetInParent()
-    _fill_DoubleList_111(request.y_positions, y_positions)
+    _fill_DoubleList_123(request.y_positions, y_positions)
   if begin_of_tip_deposit_process is not None:
     request.begin_of_tip_deposit_process = float(begin_of_tip_deposit_process)
   if end_of_tip_deposit_process is not None:
@@ -2481,8 +2542,8 @@ def encode_pipettes_initialize_request(*, x_position: Optional[float], y_positio
   return request
 
 
-def _read_DoubleList_113(message: types_pb2.DoubleList, refs: wire.Refs) -> List[float]:
-  return [item_114 for item_114 in message.values]
+def _read_DoubleList_125(message: types_pb2.DoubleList, refs: wire.Refs) -> List[float]:
+  return [item_126 for item_126 in message.values]
 
 
 async def call_pipettes_initialize(target: Pipettes, request: pipettes_pb2.PipettesInitializeRequest, refs: wire.Refs) -> Any:
@@ -2494,7 +2555,7 @@ async def call_pipettes_initialize(target: Pipettes, request: pipettes_pb2.Pipet
     a_x_position = None
   a_y_positions: Optional[List[float]]
   if request.HasField('y_positions'):
-    a_y_positions = _read_DoubleList_113(request.y_positions, refs)
+    a_y_positions = _read_DoubleList_125(request.y_positions, refs)
   else:
     a_y_positions = None
   a_begin_of_tip_deposit_process: Optional[float]
@@ -2635,8 +2696,8 @@ def decode_pipettes_move_stop_disc_to_z_position_response(response: pipettes_pb2
 def encode_pipettes_move_stop_disc_to_z_positions_request(*, zs: Dict[int, float], speed: Optional[float], acceleration: Optional[float], current_limit: Optional[int]) -> pipettes_pb2.PipettesMoveStopDiscToZPositionsRequest:
   """A call to Pipettes.move_stop_disc_to_z_positions, as its request."""
   request = pipettes_pb2.PipettesMoveStopDiscToZPositionsRequest()
-  for key_115, item_116 in zs.items():
-    request.zs[key_115] = float(item_116)
+  for key_127, item_128 in zs.items():
+    request.zs[key_127] = float(item_128)
   if speed is not None:
     request.speed = float(speed)
   if acceleration is not None:
@@ -2649,7 +2710,7 @@ def encode_pipettes_move_stop_disc_to_z_positions_request(*, zs: Dict[int, float
 async def call_pipettes_move_stop_disc_to_z_positions(target: Pipettes, request: pipettes_pb2.PipettesMoveStopDiscToZPositionsRequest, refs: wire.Refs) -> Any:
   """The call to Pipettes.move_stop_disc_to_z_positions a request asks for."""
   a_zs: Dict[int, float]
-  a_zs = {key_117: item_118 for key_117, item_118 in request.zs.items()}
+  a_zs = {key_129: item_130 for key_129, item_130 in request.zs.items()}
   a_speed: Optional[float]
   if request.HasField('speed'):
     a_speed = request.speed
@@ -2770,8 +2831,8 @@ def encode_pipettes_move_to_xy_positions_request(*, x: float, ys: Dict[int, floa
   """A call to Pipettes.move_to_xy_positions, as its request."""
   request = pipettes_pb2.PipettesMoveToXyPositionsRequest()
   request.x = float(x)
-  for key_119, item_120 in ys.items():
-    request.ys[key_119] = float(item_120)
+  for key_131, item_132 in ys.items():
+    request.ys[key_131] = float(item_132)
   request.make_space = bool(make_space)
   if minimum_traverse_height_start is not None:
     request.minimum_traverse_height_start = float(minimum_traverse_height_start)
@@ -2783,7 +2844,7 @@ async def call_pipettes_move_to_xy_positions(target: Pipettes, request: pipettes
   a_x: float
   a_x = request.x
   a_ys: Dict[int, float]
-  a_ys = {key_121: item_122 for key_121, item_122 in request.ys.items()}
+  a_ys = {key_133: item_134 for key_133, item_134 in request.ys.items()}
   a_make_space: bool
   if request.HasField('make_space'):
     a_make_space = request.make_space
@@ -2850,8 +2911,8 @@ def decode_pipettes_move_to_y_position_response(response: pipettes_pb2.PipettesM
 def encode_pipettes_move_to_y_positions_request(*, ys: Dict[int, float], make_space: bool) -> pipettes_pb2.PipettesMoveToYPositionsRequest:
   """A call to Pipettes.move_to_y_positions, as its request."""
   request = pipettes_pb2.PipettesMoveToYPositionsRequest()
-  for key_123, item_124 in ys.items():
-    request.ys[key_123] = float(item_124)
+  for key_135, item_136 in ys.items():
+    request.ys[key_135] = float(item_136)
   request.make_space = bool(make_space)
   return request
 
@@ -2859,7 +2920,7 @@ def encode_pipettes_move_to_y_positions_request(*, ys: Dict[int, float], make_sp
 async def call_pipettes_move_to_y_positions(target: Pipettes, request: pipettes_pb2.PipettesMoveToYPositionsRequest, refs: wire.Refs) -> Any:
   """The call to Pipettes.move_to_y_positions a request asks for."""
   a_ys: Dict[int, float]
-  a_ys = {key_125: item_126 for key_125, item_126 in request.ys.items()}
+  a_ys = {key_137: item_138 for key_137, item_138 in request.ys.items()}
   a_make_space: bool
   if request.HasField('make_space'):
     a_make_space = request.make_space
@@ -2939,15 +3000,15 @@ def decode_pipettes_move_tool_bottom_to_z_position_response(response: pipettes_p
 def encode_pipettes_move_tool_bottom_to_z_positions_request(*, zs: Dict[int, float]) -> pipettes_pb2.PipettesMoveToolBottomToZPositionsRequest:
   """A call to Pipettes.move_tool_bottom_to_z_positions, as its request."""
   request = pipettes_pb2.PipettesMoveToolBottomToZPositionsRequest()
-  for key_127, item_128 in zs.items():
-    request.zs[key_127] = float(item_128)
+  for key_139, item_140 in zs.items():
+    request.zs[key_139] = float(item_140)
   return request
 
 
 async def call_pipettes_move_tool_bottom_to_z_positions(target: Pipettes, request: pipettes_pb2.PipettesMoveToolBottomToZPositionsRequest, refs: wire.Refs) -> Any:
   """The call to Pipettes.move_tool_bottom_to_z_positions a request asks for."""
   a_zs: Dict[int, float]
-  a_zs = {key_129: item_130 for key_129, item_130 in request.zs.items()}
+  a_zs = {key_141: item_142 for key_141, item_142 in request.zs.items()}
   return await target.move_tool_bottom_to_z_positions(zs=a_zs)
 
 
@@ -2969,8 +3030,8 @@ def decode_pipettes_move_tool_bottom_to_z_positions_response(response: pipettes_
 def encode_pipettes_pick_up_tips_request(*, tip_spots: Sequence[handles.TipSpot], use_channels: Optional[List[int]], offsets: Optional[List[Coordinate]], begin_tip_pick_up_process: Optional[float], end_tip_pick_up_process: Optional[float], minimum_traverse_height_start: Optional[float], pickup_method: Optional[TipPickupMethod], x_tolerance: Optional[float]) -> pipettes_pb2.PipettesPickUpTipsRequest:
   """A call to Pipettes.pick_up_tips, as its request."""
   request = pipettes_pb2.PipettesPickUpTipsRequest()
-  for item_131 in tip_spots:
-    wire.fill_ref(request.tip_spots.add(), item_131)
+  for item_143 in tip_spots:
+    wire.fill_ref(request.tip_spots.add(), item_143)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -2993,7 +3054,7 @@ def encode_pipettes_pick_up_tips_request(*, tip_spots: Sequence[handles.TipSpot]
 async def call_pipettes_pick_up_tips(target: Pipettes, request: pipettes_pb2.PipettesPickUpTipsRequest, refs: wire.Refs) -> None:
   """The call to Pipettes.pick_up_tips a request asks for."""
   a_tip_spots: Sequence[handles.TipSpot]
-  a_tip_spots = [wire.handle(refs, item_132, TipSpot) for item_132 in request.tip_spots]
+  a_tip_spots = [wire.handle(refs, item_144, TipSpot) for item_144 in request.tip_spots]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -3047,8 +3108,8 @@ def decode_pipettes_pick_up_tips_response(response: pipettes_pb2.PipettesPickUpT
 def encode_pipettes_probe_liquid_heights_request(*, containers: Sequence[handles.Container], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], search_speed: float, n_replicates: int, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesProbeLiquidHeightsRequest:
   """A call to Pipettes.probe_liquid_heights, as its request."""
   request = pipettes_pb2.PipettesProbeLiquidHeightsRequest()
-  for item_133 in containers:
-    wire.fill_ref(request.containers.add(), item_133)
+  for item_145 in containers:
+    wire.fill_ref(request.containers.add(), item_145)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -3079,7 +3140,7 @@ def encode_pipettes_probe_liquid_heights_request(*, containers: Sequence[handles
 async def call_pipettes_probe_liquid_heights(target: Pipettes, request: pipettes_pb2.PipettesProbeLiquidHeightsRequest, refs: wire.Refs) -> List[float]:
   """The call to Pipettes.probe_liquid_heights a request asks for."""
   a_containers: Sequence[handles.Container]
-  a_containers = [wire.handle(refs, item_134, Container) for item_134 in request.containers]
+  a_containers = [wire.handle(refs, item_146, Container) for item_146 in request.containers]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -3091,10 +3152,10 @@ async def call_pipettes_probe_liquid_heights(target: Pipettes, request: pipettes
   else:
     a_resource_offsets = None
   a_lld_mode: Union[LLDMode, Sequence[LLDMode], None]
-  which_135 = request.WhichOneof('lld_mode')
-  if which_135 == 'lld_mode_lldmode':
+  which_147 = request.WhichOneof('lld_mode')
+  if which_147 == 'lld_mode_lldmode':
     a_lld_mode = _VALUES_69[request.lld_mode_lldmode]
-  elif which_135 == 'lld_mode_each':
+  elif which_147 == 'lld_mode_each':
     a_lld_mode = _read_LLDModeList_70(request.lld_mode_each, refs)
   else:
     a_lld_mode = None
@@ -3134,22 +3195,22 @@ async def call_pipettes_probe_liquid_heights(target: Pipettes, request: pipettes
 def encode_pipettes_probe_liquid_heights_response(value: List[float]) -> pipettes_pb2.PipettesProbeLiquidHeightsResponse:
   """What Pipettes.probe_liquid_heights returned, as its response."""
   response = pipettes_pb2.PipettesProbeLiquidHeightsResponse()
-  for item_136 in value:
-    response.heights.append(float(item_136))
+  for item_148 in value:
+    response.heights.append(float(item_148))
   return response
 
 
 def decode_pipettes_probe_liquid_heights_response(response: pipettes_pb2.PipettesProbeLiquidHeightsResponse) -> List[float]:
   """What Pipettes.probe_liquid_heights returned, from its response."""
   refs: wire.Refs = {}
-  return [item_137 for item_137 in response.heights]
+  return [item_149 for item_149 in response.heights]
 
 
 def encode_pipettes_probe_liquid_volumes_request(*, containers: Sequence[handles.Container], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], search_speed: float, n_replicates: int, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesProbeLiquidVolumesRequest:
   """A call to Pipettes.probe_liquid_volumes, as its request."""
   request = pipettes_pb2.PipettesProbeLiquidVolumesRequest()
-  for item_138 in containers:
-    wire.fill_ref(request.containers.add(), item_138)
+  for item_150 in containers:
+    wire.fill_ref(request.containers.add(), item_150)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -3180,7 +3241,7 @@ def encode_pipettes_probe_liquid_volumes_request(*, containers: Sequence[handles
 async def call_pipettes_probe_liquid_volumes(target: Pipettes, request: pipettes_pb2.PipettesProbeLiquidVolumesRequest, refs: wire.Refs) -> List[float]:
   """The call to Pipettes.probe_liquid_volumes a request asks for."""
   a_containers: Sequence[handles.Container]
-  a_containers = [wire.handle(refs, item_139, Container) for item_139 in request.containers]
+  a_containers = [wire.handle(refs, item_151, Container) for item_151 in request.containers]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -3192,10 +3253,10 @@ async def call_pipettes_probe_liquid_volumes(target: Pipettes, request: pipettes
   else:
     a_resource_offsets = None
   a_lld_mode: Union[LLDMode, Sequence[LLDMode], None]
-  which_140 = request.WhichOneof('lld_mode')
-  if which_140 == 'lld_mode_lldmode':
+  which_152 = request.WhichOneof('lld_mode')
+  if which_152 == 'lld_mode_lldmode':
     a_lld_mode = _VALUES_69[request.lld_mode_lldmode]
-  elif which_140 == 'lld_mode_each':
+  elif which_152 == 'lld_mode_each':
     a_lld_mode = _read_LLDModeList_70(request.lld_mode_each, refs)
   else:
     a_lld_mode = None
@@ -3235,22 +3296,22 @@ async def call_pipettes_probe_liquid_volumes(target: Pipettes, request: pipettes
 def encode_pipettes_probe_liquid_volumes_response(value: List[float]) -> pipettes_pb2.PipettesProbeLiquidVolumesResponse:
   """What Pipettes.probe_liquid_volumes returned, as its response."""
   response = pipettes_pb2.PipettesProbeLiquidVolumesResponse()
-  for item_141 in value:
-    response.volumes.append(float(item_141))
+  for item_153 in value:
+    response.volumes.append(float(item_153))
   return response
 
 
 def decode_pipettes_probe_liquid_volumes_response(response: pipettes_pb2.PipettesProbeLiquidVolumesResponse) -> List[float]:
   """What Pipettes.probe_liquid_volumes returned, from its response."""
   refs: wire.Refs = {}
-  return [item_142 for item_142 in response.volumes]
+  return [item_154 for item_154 in response.volumes]
 
 
 def encode_pipettes_probe_tip_inventory_request(*, tip_spots: List[handles.TipSpot], use_channels: Optional[List[int]], minimum_traverse_height_start: Optional[float], minimum_traverse_height_end: Optional[float]) -> pipettes_pb2.PipettesProbeTipInventoryRequest:
   """A call to Pipettes.probe_tip_inventory, as its request."""
   request = pipettes_pb2.PipettesProbeTipInventoryRequest()
-  for item_143 in tip_spots:
-    wire.fill_ref(request.tip_spots.add(), item_143)
+  for item_155 in tip_spots:
+    wire.fill_ref(request.tip_spots.add(), item_155)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -3264,7 +3325,7 @@ def encode_pipettes_probe_tip_inventory_request(*, tip_spots: List[handles.TipSp
 async def call_pipettes_probe_tip_inventory(target: Pipettes, request: pipettes_pb2.PipettesProbeTipInventoryRequest, refs: wire.Refs) -> Dict[str, bool]:
   """The call to Pipettes.probe_tip_inventory a request asks for."""
   a_tip_spots: List[handles.TipSpot]
-  a_tip_spots = [wire.handle(refs, item_144, TipSpot) for item_144 in request.tip_spots]
+  a_tip_spots = [wire.handle(refs, item_156, TipSpot) for item_156 in request.tip_spots]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -3286,22 +3347,22 @@ async def call_pipettes_probe_tip_inventory(target: Pipettes, request: pipettes_
 def encode_pipettes_probe_tip_inventory_response(value: Dict[str, bool]) -> pipettes_pb2.PipettesProbeTipInventoryResponse:
   """What Pipettes.probe_tip_inventory returned, as its response."""
   response = pipettes_pb2.PipettesProbeTipInventoryResponse()
-  for key_145, item_146 in value.items():
-    response.present[key_145] = bool(item_146)
+  for key_157, item_158 in value.items():
+    response.present[key_157] = bool(item_158)
   return response
 
 
 def decode_pipettes_probe_tip_inventory_response(response: pipettes_pb2.PipettesProbeTipInventoryResponse) -> Dict[str, bool]:
   """What Pipettes.probe_tip_inventory returned, from its response."""
   refs: wire.Refs = {}
-  return {key_147: item_148 for key_147, item_148 in response.present.items()}
+  return {key_159: item_160 for key_159, item_160 in response.present.items()}
 
 
 def encode_pipettes_probe_tip_presence_via_pickup_request(*, tip_spots: List[handles.TipSpot], use_channels: Optional[List[int]], minimum_traverse_height_start: Optional[float], minimum_traverse_height_end: Optional[float]) -> pipettes_pb2.PipettesProbeTipPresenceViaPickupRequest:
   """A call to Pipettes.probe_tip_presence_via_pickup, as its request."""
   request = pipettes_pb2.PipettesProbeTipPresenceViaPickupRequest()
-  for item_149 in tip_spots:
-    wire.fill_ref(request.tip_spots.add(), item_149)
+  for item_161 in tip_spots:
+    wire.fill_ref(request.tip_spots.add(), item_161)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -3315,7 +3376,7 @@ def encode_pipettes_probe_tip_presence_via_pickup_request(*, tip_spots: List[han
 async def call_pipettes_probe_tip_presence_via_pickup(target: Pipettes, request: pipettes_pb2.PipettesProbeTipPresenceViaPickupRequest, refs: wire.Refs) -> Dict[str, bool]:
   """The call to Pipettes.probe_tip_presence_via_pickup a request asks for."""
   a_tip_spots: List[handles.TipSpot]
-  a_tip_spots = [wire.handle(refs, item_150, TipSpot) for item_150 in request.tip_spots]
+  a_tip_spots = [wire.handle(refs, item_162, TipSpot) for item_162 in request.tip_spots]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -3337,26 +3398,26 @@ async def call_pipettes_probe_tip_presence_via_pickup(target: Pipettes, request:
 def encode_pipettes_probe_tip_presence_via_pickup_response(value: Dict[str, bool]) -> pipettes_pb2.PipettesProbeTipPresenceViaPickupResponse:
   """What Pipettes.probe_tip_presence_via_pickup returned, as its response."""
   response = pipettes_pb2.PipettesProbeTipPresenceViaPickupResponse()
-  for key_151, item_152 in value.items():
-    response.present[key_151] = bool(item_152)
+  for key_163, item_164 in value.items():
+    response.present[key_163] = bool(item_164)
   return response
 
 
 def decode_pipettes_probe_tip_presence_via_pickup_response(response: pipettes_pb2.PipettesProbeTipPresenceViaPickupResponse) -> Dict[str, bool]:
   """What Pipettes.probe_tip_presence_via_pickup returned, from its response."""
   refs: wire.Refs = {}
-  return {key_153: item_154 for key_153, item_154 in response.present.items()}
+  return {key_165: item_166 for key_165, item_166 in response.present.items()}
 
 
 # pylabrobot.hamilton.star.server.v1.XProbeDirection's values, by their names' suffixes.
-_ENUM_155: Dict[str, types_pb2.XProbeDirection] = {'UNSPECIFIED': types_pb2.XPROBE_DIRECTION_UNSPECIFIED, 'LEFT': types_pb2.XPROBE_DIRECTION_LEFT, 'RIGHT': types_pb2.XPROBE_DIRECTION_RIGHT}
+_ENUM_167: Dict[str, types_pb2.XProbeDirection] = {'UNSPECIFIED': types_pb2.XPROBE_DIRECTION_UNSPECIFIED, 'LEFT': types_pb2.XPROBE_DIRECTION_LEFT, 'RIGHT': types_pb2.XPROBE_DIRECTION_RIGHT}
 
 
 def encode_pipettes_probe_x_using_clld_request(*, channel: int, direction: Literal['left', 'right'], search_end_position: Optional[float], post_detection_distance: float, tip_bottom_diameter: float, stop_disc_diameter: float, allow_without_tip: bool, read_timeout: int) -> pipettes_pb2.PipettesProbeXUsingClldRequest:
   """A call to Pipettes.probe_x_using_clld, as its request."""
   request = pipettes_pb2.PipettesProbeXUsingClldRequest()
   request.channel = int(channel)
-  request.direction = wire.enum_number(_ENUM_155, 'XProbeDirection', direction)
+  request.direction = wire.enum_number(_ENUM_167, 'XProbeDirection', direction)
   if search_end_position is not None:
     request.search_end_position = float(search_end_position)
   request.post_detection_distance = float(post_detection_distance)
@@ -3368,7 +3429,7 @@ def encode_pipettes_probe_x_using_clld_request(*, channel: int, direction: Liter
 
 
 # What pylabrobot.hamilton.star.server.v1.XProbeDirection's numbers are, as Literal['left', 'right'].
-_VALUES_156: Dict[int, Literal['left', 'right']] = {1: 'left', 2: 'right'}
+_VALUES_168: Dict[int, Literal['left', 'right']] = {1: 'left', 2: 'right'}
 
 
 async def call_pipettes_probe_x_using_clld(target: Pipettes, request: pipettes_pb2.PipettesProbeXUsingClldRequest, refs: wire.Refs) -> Optional[float]:
@@ -3376,7 +3437,7 @@ async def call_pipettes_probe_x_using_clld(target: Pipettes, request: pipettes_p
   a_channel: int
   a_channel = request.channel
   a_direction: Literal['left', 'right']
-  a_direction = _VALUES_156[request.direction]
+  a_direction = _VALUES_168[request.direction]
   a_search_end_position: Optional[float]
   if request.HasField('search_end_position'):
     a_search_end_position = request.search_end_position
@@ -3425,14 +3486,14 @@ def decode_pipettes_probe_x_using_clld_response(response: pipettes_pb2.PipettesP
 
 
 # pylabrobot.hamilton.star.server.v1.YProbeDirection's values, by their names' suffixes.
-_ENUM_157: Dict[str, types_pb2.YProbeDirection] = {'UNSPECIFIED': types_pb2.YPROBE_DIRECTION_UNSPECIFIED, 'FORWARD': types_pb2.YPROBE_DIRECTION_FORWARD, 'BACKWARD': types_pb2.YPROBE_DIRECTION_BACKWARD}
+_ENUM_169: Dict[str, types_pb2.YProbeDirection] = {'UNSPECIFIED': types_pb2.YPROBE_DIRECTION_UNSPECIFIED, 'FORWARD': types_pb2.YPROBE_DIRECTION_FORWARD, 'BACKWARD': types_pb2.YPROBE_DIRECTION_BACKWARD}
 
 
 def encode_pipettes_probe_y_using_clld_request(*, channel: int, direction: Literal['forward', 'backward'], search_start_position: Optional[float], search_end_position: Optional[float], search_speed: float, acceleration_level: int, detection_edge: int, current_limit: int, post_detection_distance: float, tip_bottom_diameter: float, stop_disc_diameter: float, allow_without_tip: bool) -> pipettes_pb2.PipettesProbeYUsingClldRequest:
   """A call to Pipettes.probe_y_using_clld, as its request."""
   request = pipettes_pb2.PipettesProbeYUsingClldRequest()
   request.channel = int(channel)
-  request.direction = wire.enum_number(_ENUM_157, 'YProbeDirection', direction)
+  request.direction = wire.enum_number(_ENUM_169, 'YProbeDirection', direction)
   if search_start_position is not None:
     request.search_start_position = float(search_start_position)
   if search_end_position is not None:
@@ -3449,7 +3510,7 @@ def encode_pipettes_probe_y_using_clld_request(*, channel: int, direction: Liter
 
 
 # What pylabrobot.hamilton.star.server.v1.YProbeDirection's numbers are, as Literal['forward', 'backward'].
-_VALUES_158: Dict[int, Literal['forward', 'backward']] = {1: 'forward', 2: 'backward'}
+_VALUES_170: Dict[int, Literal['forward', 'backward']] = {1: 'forward', 2: 'backward'}
 
 
 async def call_pipettes_probe_y_using_clld(target: Pipettes, request: pipettes_pb2.PipettesProbeYUsingClldRequest, refs: wire.Refs) -> Optional[float]:
@@ -3457,7 +3518,7 @@ async def call_pipettes_probe_y_using_clld(target: Pipettes, request: pipettes_p
   a_channel: int
   a_channel = request.channel
   a_direction: Literal['forward', 'backward']
-  a_direction = _VALUES_158[request.direction]
+  a_direction = _VALUES_170[request.direction]
   a_search_start_position: Optional[float]
   if request.HasField('search_start_position'):
     a_search_start_position = request.search_start_position
@@ -3528,8 +3589,8 @@ def decode_pipettes_probe_y_using_clld_response(response: pipettes_pb2.PipettesP
 def encode_pipettes_probe_z_heights_using_ztouch_request(*, containers: Sequence[handles.Container], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], search_speed: float, n_replicates: int, approach_speed: float, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesProbeZHeightsUsingZtouchRequest:
   """A call to Pipettes.probe_z_heights_using_ztouch, as its request."""
   request = pipettes_pb2.PipettesProbeZHeightsUsingZtouchRequest()
-  for item_159 in containers:
-    wire.fill_ref(request.containers.add(), item_159)
+  for item_171 in containers:
+    wire.fill_ref(request.containers.add(), item_171)
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
@@ -3553,7 +3614,7 @@ def encode_pipettes_probe_z_heights_using_ztouch_request(*, containers: Sequence
 async def call_pipettes_probe_z_heights_using_ztouch(target: Pipettes, request: pipettes_pb2.PipettesProbeZHeightsUsingZtouchRequest, refs: wire.Refs) -> List[Optional[float]]:
   """The call to Pipettes.probe_z_heights_using_ztouch a request asks for."""
   a_containers: Sequence[handles.Container]
-  a_containers = [wire.handle(refs, item_160, Container) for item_160 in request.containers]
+  a_containers = [wire.handle(refs, item_172, Container) for item_172 in request.containers]
   a_use_channels: Optional[List[int]]
   if request.HasField('use_channels'):
     a_use_channels = _read_Int32List_61(request.use_channels, refs)
@@ -3605,15 +3666,15 @@ async def call_pipettes_probe_z_heights_using_ztouch(target: Pipettes, request: 
 def encode_pipettes_probe_z_heights_using_ztouch_response(value: List[Union[float, None]]) -> pipettes_pb2.PipettesProbeZHeightsUsingZtouchResponse:
   """What Pipettes.probe_z_heights_using_ztouch returned, as its response."""
   response = pipettes_pb2.PipettesProbeZHeightsUsingZtouchResponse()
-  for item_161 in value:
-    _fill_OptionalDouble_40(response.heights.add(), item_161)
+  for item_173 in value:
+    _fill_OptionalDouble_40(response.heights.add(), item_173)
   return response
 
 
 def decode_pipettes_probe_z_heights_using_ztouch_response(response: pipettes_pb2.PipettesProbeZHeightsUsingZtouchResponse) -> List[Union[float, None]]:
   """What Pipettes.probe_z_heights_using_ztouch returned, from its response."""
   refs: wire.Refs = {}
-  return [_read_OptionalDouble_67(item_162, refs) for item_162 in response.heights]
+  return [_read_OptionalDouble_67(item_174, refs) for item_174 in response.heights]
 
 
 def encode_pipettes_probe_z_max_request() -> pipettes_pb2.PipettesProbeZMaxRequest:
@@ -3630,15 +3691,15 @@ async def call_pipettes_probe_z_max(target: Pipettes, request: pipettes_pb2.Pipe
 def encode_pipettes_probe_z_max_response(value: List[float]) -> pipettes_pb2.PipettesProbeZMaxResponse:
   """What Pipettes.probe_z_max returned, as its response."""
   response = pipettes_pb2.PipettesProbeZMaxResponse()
-  for item_163 in value:
-    response.z_max.append(float(item_163))
+  for item_175 in value:
+    response.z_max.append(float(item_175))
   return response
 
 
 def decode_pipettes_probe_z_max_response(response: pipettes_pb2.PipettesProbeZMaxResponse) -> List[float]:
   """What Pipettes.probe_z_max returned, from its response."""
   refs: wire.Refs = {}
-  return [item_164 for item_164 in response.z_max]
+  return [item_176 for item_176 in response.z_max]
 
 
 def encode_pipettes_probe_z_using_clld_request(*, channel: int, search_start_position: Optional[float], search_end_position: Optional[float], search_speed: float, acceleration: float, detection_edge: int, detection_drop: int, post_detection_trajectory: Literal[0, 1], allow_without_tip: bool, post_detection_distance: float, move_to_safe_z_position_after: bool) -> pipettes_pb2.PipettesProbeZUsingClldRequest:
@@ -3732,7 +3793,7 @@ def decode_pipettes_probe_z_using_clld_response(response: pipettes_pb2.PipettesP
 
 
 # pylabrobot.hamilton.star.server.v1.PressureLLDMode's values, by their names' suffixes.
-_ENUM_165: Dict[str, types_pb2.PressureLLDMode] = {'UNSPECIFIED': types_pb2.PRESSURE_LLD_MODE_UNSPECIFIED, 'LIQUID': types_pb2.PRESSURE_LLD_MODE_LIQUID, 'FOAM': types_pb2.PRESSURE_LLD_MODE_FOAM}
+_ENUM_177: Dict[str, types_pb2.PressureLLDMode] = {'UNSPECIFIED': types_pb2.PRESSURE_LLD_MODE_UNSPECIFIED, 'LIQUID': types_pb2.PRESSURE_LLD_MODE_LIQUID, 'FOAM': types_pb2.PRESSURE_LLD_MODE_FOAM}
 
 
 def encode_pipettes_probe_z_using_plld_request(*, channel: int, search_start_position: Optional[float], search_end_position: Optional[float], pressure_mode: Optional[Pipettes.PressureLLDMode], allow_without_tip: bool, post_detection_distance: float, move_to_safe_z_position_after: bool, search: Dict[str, Any]) -> pipettes_pb2.PipettesProbeZUsingPlldRequest:
@@ -3744,84 +3805,84 @@ def encode_pipettes_probe_z_using_plld_request(*, channel: int, search_start_pos
   if search_end_position is not None:
     request.search_end_position = float(search_end_position)
   if pressure_mode is not None:
-    request.pressure_mode = wire.enum_number(_ENUM_165, 'PressureLLDMode', pressure_mode)
+    request.pressure_mode = wire.enum_number(_ENUM_177, 'PressureLLDMode', pressure_mode)
   request.allow_without_tip = bool(allow_without_tip)
   request.post_detection_distance = float(post_detection_distance)
   request.move_to_safe_z_position_after = bool(move_to_safe_z_position_after)
-  for key_166, item_167 in search.items():
-    if key_166 == 'channel':
-      request.channel = int(item_167)
-    elif key_166 == 'search_start_position':
-      if item_167 is not None:
-        request.search_start_position = float(item_167)
-    elif key_166 == 'search_end_position':
-      if item_167 is not None:
-        request.search_end_position = float(item_167)
-    elif key_166 == 'pressure_mode':
-      if item_167 is not None:
-        request.pressure_mode = wire.enum_number(_ENUM_165, 'PressureLLDMode', item_167)
-    elif key_166 == 'allow_without_tip':
-      if item_167 is not None:
-        request.allow_without_tip = bool(item_167)
-    elif key_166 == 'post_detection_distance':
-      request.post_detection_distance = float(item_167)
-    elif key_166 == 'move_to_safe_z_position_after':
-      if item_167 is not None:
-        request.move_to_safe_z_position_after = bool(item_167)
-    elif key_166 == 'approach_speed':
-      request.approach_speed = float(item_167)
-    elif key_166 == 'search_speed':
-      request.search_speed = float(item_167)
-    elif key_166 == 'acceleration':
-      request.acceleration = float(item_167)
-    elif key_166 == 'z_current_limit':
-      if item_167 is not None:
-        request.z_current_limit = int(item_167)
-    elif key_166 == 'tip_has_filter':
-      if item_167 is not None:
-        request.tip_has_filter = bool(item_167)
-    elif key_166 == 'dispensing_speed':
-      request.dispensing_speed = float(item_167)
-    elif key_166 == 'dispensing_acceleration':
-      request.dispensing_acceleration = float(item_167)
-    elif key_166 == 'dispensing_max_speed':
-      request.dispensing_max_speed = float(item_167)
-    elif key_166 == 'dispensing_current_limit':
-      request.dispensing_current_limit = int(item_167)
-    elif key_166 == 'detection_edge':
-      request.detection_edge = int(item_167)
-    elif key_166 == 'detection_drop':
-      request.detection_drop = int(item_167)
-    elif key_166 == 'clld_verification':
-      request.clld_verification = bool(item_167)
-    elif key_166 == 'clld_detection_edge':
-      request.clld_detection_edge = int(item_167)
-    elif key_166 == 'clld_detection_drop':
-      request.clld_detection_drop = int(item_167)
-    elif key_166 == 'max_delta_plld_clld':
-      request.max_delta_plld_clld = float(item_167)
-    elif key_166 == 'foam_detection_drop':
-      request.foam_detection_drop = int(item_167)
-    elif key_166 == 'foam_detection_edge_tolerance':
-      request.foam_detection_edge_tolerance = int(item_167)
-    elif key_166 == 'foam_ad_values':
-      request.foam_ad_values = int(item_167)
-    elif key_166 == 'foam_search_speed':
-      request.foam_search_speed = float(item_167)
-    elif key_166 == 'dispense_back_volume':
-      if item_167 is not None:
-        request.dispense_back_volume = float(item_167)
-    elif key_166 == 'post_detection_trajectory':
-      request.post_detection_trajectory = int(item_167)
-    elif key_166 == 'read_timeout':
-      request.read_timeout = int(item_167)
+  for key_178, item_179 in search.items():
+    if key_178 == 'channel':
+      request.channel = int(item_179)
+    elif key_178 == 'search_start_position':
+      if item_179 is not None:
+        request.search_start_position = float(item_179)
+    elif key_178 == 'search_end_position':
+      if item_179 is not None:
+        request.search_end_position = float(item_179)
+    elif key_178 == 'pressure_mode':
+      if item_179 is not None:
+        request.pressure_mode = wire.enum_number(_ENUM_177, 'PressureLLDMode', item_179)
+    elif key_178 == 'allow_without_tip':
+      if item_179 is not None:
+        request.allow_without_tip = bool(item_179)
+    elif key_178 == 'post_detection_distance':
+      request.post_detection_distance = float(item_179)
+    elif key_178 == 'move_to_safe_z_position_after':
+      if item_179 is not None:
+        request.move_to_safe_z_position_after = bool(item_179)
+    elif key_178 == 'approach_speed':
+      request.approach_speed = float(item_179)
+    elif key_178 == 'search_speed':
+      request.search_speed = float(item_179)
+    elif key_178 == 'acceleration':
+      request.acceleration = float(item_179)
+    elif key_178 == 'z_current_limit':
+      if item_179 is not None:
+        request.z_current_limit = int(item_179)
+    elif key_178 == 'tip_has_filter':
+      if item_179 is not None:
+        request.tip_has_filter = bool(item_179)
+    elif key_178 == 'dispensing_speed':
+      request.dispensing_speed = float(item_179)
+    elif key_178 == 'dispensing_acceleration':
+      request.dispensing_acceleration = float(item_179)
+    elif key_178 == 'dispensing_max_speed':
+      request.dispensing_max_speed = float(item_179)
+    elif key_178 == 'dispensing_current_limit':
+      request.dispensing_current_limit = int(item_179)
+    elif key_178 == 'detection_edge':
+      request.detection_edge = int(item_179)
+    elif key_178 == 'detection_drop':
+      request.detection_drop = int(item_179)
+    elif key_178 == 'clld_verification':
+      request.clld_verification = bool(item_179)
+    elif key_178 == 'clld_detection_edge':
+      request.clld_detection_edge = int(item_179)
+    elif key_178 == 'clld_detection_drop':
+      request.clld_detection_drop = int(item_179)
+    elif key_178 == 'max_delta_plld_clld':
+      request.max_delta_plld_clld = float(item_179)
+    elif key_178 == 'foam_detection_drop':
+      request.foam_detection_drop = int(item_179)
+    elif key_178 == 'foam_detection_edge_tolerance':
+      request.foam_detection_edge_tolerance = int(item_179)
+    elif key_178 == 'foam_ad_values':
+      request.foam_ad_values = int(item_179)
+    elif key_178 == 'foam_search_speed':
+      request.foam_search_speed = float(item_179)
+    elif key_178 == 'dispense_back_volume':
+      if item_179 is not None:
+        request.dispense_back_volume = float(item_179)
+    elif key_178 == 'post_detection_trajectory':
+      request.post_detection_trajectory = int(item_179)
+    elif key_178 == 'read_timeout':
+      request.read_timeout = int(item_179)
     else:
-      raise TypeError(f"probe_z_using_plld() got an unexpected keyword argument '{key_166}'")
+      raise TypeError(f"probe_z_using_plld() got an unexpected keyword argument '{key_178}'")
   return request
 
 
 # What pylabrobot.hamilton.star.server.v1.PressureLLDMode's numbers are, as Pipettes.PressureLLDMode.
-_VALUES_168: Dict[int, Pipettes.PressureLLDMode] = {1: Pipettes.PressureLLDMode.LIQUID, 2: Pipettes.PressureLLDMode.FOAM}
+_VALUES_180: Dict[int, Pipettes.PressureLLDMode] = {1: Pipettes.PressureLLDMode.LIQUID, 2: Pipettes.PressureLLDMode.FOAM}
 
 
 async def call_pipettes_probe_z_using_plld(target: Pipettes, request: pipettes_pb2.PipettesProbeZUsingPlldRequest, refs: wire.Refs) -> Optional[List[float]]:
@@ -3840,7 +3901,7 @@ async def call_pipettes_probe_z_using_plld(target: Pipettes, request: pipettes_p
     a_search_end_position = None
   a_pressure_mode: Optional[Pipettes.PressureLLDMode]
   if request.HasField('pressure_mode'):
-    a_pressure_mode = _VALUES_168[request.pressure_mode]
+    a_pressure_mode = _VALUES_180[request.pressure_mode]
   else:
     a_pressure_mode = None
   a_allow_without_tip: bool
@@ -3911,14 +3972,14 @@ def encode_pipettes_probe_z_using_plld_response(value: Union[List[float], None])
   response = pipettes_pb2.PipettesProbeZUsingPlldResponse()
   if value is not None:
     response.heights.SetInParent()
-    _fill_DoubleList_111(response.heights, value)
+    _fill_DoubleList_123(response.heights, value)
   return response
 
 
 def decode_pipettes_probe_z_using_plld_response(response: pipettes_pb2.PipettesProbeZUsingPlldResponse) -> Union[List[float], None]:
   """What Pipettes.probe_z_using_plld returned, from its response."""
   refs: wire.Refs = {}
-  return (_read_DoubleList_113(response.heights, refs) if response.HasField('heights') else None)
+  return (_read_DoubleList_125(response.heights, refs) if response.HasField('heights') else None)
 
 
 def encode_pipettes_probe_z_using_ztouch_request(*, channel: int, search_start_position: Optional[float], search_end_position: Optional[float], search_speed: float, approach_speed: float, acceleration: float, detection_limiter_pwm: int, push_force_pwm: int, allow_without_tip: bool, post_detection_distance: float, move_to_safe_z_position_after: bool) -> pipettes_pb2.PipettesProbeZUsingZtouchRequest:
@@ -4031,44 +4092,19 @@ async def call_pipettes_read_tadm_curve(target: Pipettes, request: pipettes_pb2.
   return await target.read_tadm_curve(channel=a_channel, points_per_read=a_points_per_read)
 
 
-# pylabrobot.hamilton.star.server.v1.TADMOperation's values, by their names' suffixes.
-_ENUM_170: Dict[str, types_pb2.TADMOperation] = {'UNSPECIFIED': types_pb2.TADM_OPERATION_UNSPECIFIED, 'ASPIRATE': types_pb2.TADM_OPERATION_ASPIRATE, 'DISPENSE': types_pb2.TADM_OPERATION_DISPENSE, 'OTHER': types_pb2.TADM_OPERATION_OTHER}
-
-
-def _fill_TADMCurve_169(message: pipettes_pb2.TADMCurve, value: TADMCurve) -> None:
-  message.measurement_id = wire.text(value.measurement_id)
-  message.operation = wire.enum_number(_ENUM_170, 'TADMOperation', value.operation)
-  message.had_error = bool(value.had_error)
-  for item_171 in value.pressures:
-    message.pressures.append(int(item_171))
-
-
-# What pylabrobot.hamilton.star.server.v1.TADMOperation's numbers are, as Literal['aspirate', 'dispense', 'other'].
-_VALUES_173: Dict[int, Literal['aspirate', 'dispense', 'other']] = {1: 'aspirate', 2: 'dispense', 3: 'other'}
-
-
-def _read_TADMCurve_172(message: pipettes_pb2.TADMCurve, refs: wire.Refs) -> TADMCurve:
-  return TADMCurve(
-    measurement_id=message.measurement_id,
-    operation=_VALUES_173[message.operation],
-    had_error=message.had_error,
-    pressures=[item_174 for item_174 in message.pressures],
-  )
-
-
 def encode_pipettes_read_tadm_curve_response(value: Union[TADMCurve, None]) -> pipettes_pb2.PipettesReadTadmCurveResponse:
   """What Pipettes.read_tadm_curve returned, as its response."""
   response = pipettes_pb2.PipettesReadTadmCurveResponse()
   if value is not None:
     response.curve.SetInParent()
-    _fill_TADMCurve_169(response.curve, value)
+    _fill_TADMCurve_86(response.curve, value)
   return response
 
 
 def decode_pipettes_read_tadm_curve_response(response: pipettes_pb2.PipettesReadTadmCurveResponse) -> Union[TADMCurve, None]:
   """What Pipettes.read_tadm_curve returned, from its response."""
   refs: wire.Refs = {}
-  return (_read_TADMCurve_172(response.curve, refs) if response.HasField('curve') else None)
+  return (_read_TADMCurve_91(response.curve, refs) if response.HasField('curve') else None)
 
 
 def encode_pipettes_request_channel_pressure_request(*, channel: int) -> pipettes_pb2.PipettesRequestChannelPressureRequest:
@@ -4141,15 +4177,15 @@ async def call_pipettes_request_last_lld_z_positions(target: Pipettes, request: 
 def encode_pipettes_request_last_lld_z_positions_response(value: List[float]) -> pipettes_pb2.PipettesRequestLastLldZPositionsResponse:
   """What Pipettes.request_last_lld_z_positions returned, as its response."""
   response = pipettes_pb2.PipettesRequestLastLldZPositionsResponse()
-  for item_175 in value:
-    response.last_lld_z_positions.append(float(item_175))
+  for item_181 in value:
+    response.last_lld_z_positions.append(float(item_181))
   return response
 
 
 def decode_pipettes_request_last_lld_z_positions_response(response: pipettes_pb2.PipettesRequestLastLldZPositionsResponse) -> List[float]:
   """What Pipettes.request_last_lld_z_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_176 for item_176 in response.last_lld_z_positions]
+  return [item_182 for item_182 in response.last_lld_z_positions]
 
 
 def encode_pipettes_request_min_pipette_width_request(*, channel: int) -> pipettes_pb2.PipettesRequestMinPipetteWidthRequest:
@@ -4194,30 +4230,30 @@ async def call_pipettes_request_pipette_configuration(target: Pipettes, request:
 
 
 # pylabrobot.hamilton.star.server.v1.PipetteChannelType's values, by their names' suffixes.
-_ENUM_178: Dict[str, types_pb2.PipetteChannelType] = {'UNSPECIFIED': types_pb2.PIPETTE_CHANNEL_TYPE_UNSPECIFIED, 'ML_STAR': types_pb2.PIPETTE_CHANNEL_TYPE_ML_STAR, 'ML_STAR_RPC': types_pb2.PIPETTE_CHANNEL_TYPE_ML_STAR_RPC}
+_ENUM_184: Dict[str, types_pb2.PipetteChannelType] = {'UNSPECIFIED': types_pb2.PIPETTE_CHANNEL_TYPE_UNSPECIFIED, 'ML_STAR': types_pb2.PIPETTE_CHANNEL_TYPE_ML_STAR, 'ML_STAR_RPC': types_pb2.PIPETTE_CHANNEL_TYPE_ML_STAR_RPC}
 
 
 # pylabrobot.hamilton.star.server.v1.PipetteHeadType's values, by their names' suffixes.
-_ENUM_179: Dict[str, types_pb2.PipetteHeadType] = {'UNSPECIFIED': types_pb2.PIPETTE_HEAD_TYPE_UNSPECIFIED, 'ML_STAR': types_pb2.PIPETTE_HEAD_TYPE_ML_STAR, 'ML_STAR_PLE': types_pb2.PIPETTE_HEAD_TYPE_ML_STAR_PLE, 'ML_STAR_RPC': types_pb2.PIPETTE_HEAD_TYPE_ML_STAR_RPC}
+_ENUM_185: Dict[str, types_pb2.PipetteHeadType] = {'UNSPECIFIED': types_pb2.PIPETTE_HEAD_TYPE_UNSPECIFIED, 'ML_STAR': types_pb2.PIPETTE_HEAD_TYPE_ML_STAR, 'ML_STAR_PLE': types_pb2.PIPETTE_HEAD_TYPE_ML_STAR_PLE, 'ML_STAR_RPC': types_pb2.PIPETTE_HEAD_TYPE_ML_STAR_RPC}
 
 
 # pylabrobot.hamilton.star.server.v1.StopDiscType's values, by their names' suffixes.
-_ENUM_180: Dict[str, types_pb2.StopDiscType] = {'UNSPECIFIED': types_pb2.STOP_DISC_TYPE_UNSPECIFIED, 'CORE_I': types_pb2.STOP_DISC_TYPE_CORE_I, 'CORE_II': types_pb2.STOP_DISC_TYPE_CORE_II}
+_ENUM_186: Dict[str, types_pb2.StopDiscType] = {'UNSPECIFIED': types_pb2.STOP_DISC_TYPE_UNSPECIFIED, 'CORE_I': types_pb2.STOP_DISC_TYPE_CORE_I, 'CORE_II': types_pb2.STOP_DISC_TYPE_CORE_II}
 
 
 # pylabrobot.hamilton.star.server.v1.PressureADC's values, by their names' suffixes.
-_ENUM_181: Dict[str, types_pb2.PressureADC] = {'UNSPECIFIED': types_pb2.PRESSURE_ADC_UNSPECIFIED, 'RENESAS_X9268': types_pb2.PRESSURE_ADC_RENESAS_X9268, 'ANALOG_DEVICES_AD5263': types_pb2.PRESSURE_ADC_ANALOG_DEVICES_AD5263}
+_ENUM_187: Dict[str, types_pb2.PressureADC] = {'UNSPECIFIED': types_pb2.PRESSURE_ADC_UNSPECIFIED, 'RENESAS_X9268': types_pb2.PRESSURE_ADC_RENESAS_X9268, 'ANALOG_DEVICES_AD5263': types_pb2.PRESSURE_ADC_ANALOG_DEVICES_AD5263}
 
 
-def _fill_PipetteConfiguration_177(message: pipettes_pb2.PipetteConfiguration, value: PipetteConfiguration) -> None:
+def _fill_PipetteConfiguration_183(message: pipettes_pb2.PipetteConfiguration, value: PipetteConfiguration) -> None:
   if value.channel_type is not None:
-    message.channel_type = wire.enum_number(_ENUM_178, 'PipetteChannelType', value.channel_type)
+    message.channel_type = wire.enum_number(_ENUM_184, 'PipetteChannelType', value.channel_type)
   if value.head_type is not None:
-    message.head_type = wire.enum_number(_ENUM_179, 'PipetteHeadType', value.head_type)
+    message.head_type = wire.enum_number(_ENUM_185, 'PipetteHeadType', value.head_type)
   if value.stop_disc_type is not None:
-    message.stop_disc_type = wire.enum_number(_ENUM_180, 'StopDiscType', value.stop_disc_type)
+    message.stop_disc_type = wire.enum_number(_ENUM_186, 'StopDiscType', value.stop_disc_type)
   if value.pressure_adc is not None:
-    message.pressure_adc = wire.enum_number(_ENUM_181, 'PressureADC', value.pressure_adc)
+    message.pressure_adc = wire.enum_number(_ENUM_187, 'PressureADC', value.pressure_adc)
   if value.firmware_version is not None:
     message.firmware_version = wire.text(value.firmware_version)
   if value.width is not None:
@@ -4225,27 +4261,27 @@ def _fill_PipetteConfiguration_177(message: pipettes_pb2.PipetteConfiguration, v
 
 
 # What pylabrobot.hamilton.star.server.v1.PipetteChannelType's numbers are, as Literal['ML_STAR', 'ML_STAR_RPC'].
-_VALUES_183: Dict[int, Literal['ML_STAR', 'ML_STAR_RPC']] = {1: 'ML_STAR', 2: 'ML_STAR_RPC'}
+_VALUES_189: Dict[int, Literal['ML_STAR', 'ML_STAR_RPC']] = {1: 'ML_STAR', 2: 'ML_STAR_RPC'}
 
 
 # What pylabrobot.hamilton.star.server.v1.PipetteHeadType's numbers are, as Literal['ML_STAR', 'ML_STAR_PLE', 'ML_STAR_RPC'].
-_VALUES_184: Dict[int, Literal['ML_STAR', 'ML_STAR_PLE', 'ML_STAR_RPC']] = {1: 'ML_STAR', 2: 'ML_STAR_PLE', 3: 'ML_STAR_RPC'}
+_VALUES_190: Dict[int, Literal['ML_STAR', 'ML_STAR_PLE', 'ML_STAR_RPC']] = {1: 'ML_STAR', 2: 'ML_STAR_PLE', 3: 'ML_STAR_RPC'}
 
 
 # What pylabrobot.hamilton.star.server.v1.StopDiscType's numbers are, as Literal['core_i', 'core_ii'].
-_VALUES_185: Dict[int, Literal['core_i', 'core_ii']] = {1: 'core_i', 2: 'core_ii'}
+_VALUES_191: Dict[int, Literal['core_i', 'core_ii']] = {1: 'core_i', 2: 'core_ii'}
 
 
 # What pylabrobot.hamilton.star.server.v1.PressureADC's numbers are, as Literal['Renesas_X9268', 'Analog_Devices_AD5263'].
-_VALUES_186: Dict[int, Literal['Renesas_X9268', 'Analog_Devices_AD5263']] = {1: 'Renesas_X9268', 2: 'Analog_Devices_AD5263'}
+_VALUES_192: Dict[int, Literal['Renesas_X9268', 'Analog_Devices_AD5263']] = {1: 'Renesas_X9268', 2: 'Analog_Devices_AD5263'}
 
 
-def _read_PipetteConfiguration_182(message: pipettes_pb2.PipetteConfiguration, refs: wire.Refs) -> PipetteConfiguration:
+def _read_PipetteConfiguration_188(message: pipettes_pb2.PipetteConfiguration, refs: wire.Refs) -> PipetteConfiguration:
   return PipetteConfiguration(
-    channel_type=(_VALUES_183[message.channel_type] if message.HasField('channel_type') else None),
-    head_type=(_VALUES_184[message.head_type] if message.HasField('head_type') else None),
-    stop_disc_type=(_VALUES_185[message.stop_disc_type] if message.HasField('stop_disc_type') else None),
-    pressure_adc=(_VALUES_186[message.pressure_adc] if message.HasField('pressure_adc') else None),
+    channel_type=(_VALUES_189[message.channel_type] if message.HasField('channel_type') else None),
+    head_type=(_VALUES_190[message.head_type] if message.HasField('head_type') else None),
+    stop_disc_type=(_VALUES_191[message.stop_disc_type] if message.HasField('stop_disc_type') else None),
+    pressure_adc=(_VALUES_192[message.pressure_adc] if message.HasField('pressure_adc') else None),
     firmware_version=(message.firmware_version if message.HasField('firmware_version') else None),
     width=(message.width if message.HasField('width') else None),
   )
@@ -4255,14 +4291,14 @@ def encode_pipettes_request_pipette_configuration_response(value: PipetteConfigu
   """What Pipettes.request_pipette_configuration returned, as its response."""
   response = pipettes_pb2.PipettesRequestPipetteConfigurationResponse()
   response.configuration.SetInParent()
-  _fill_PipetteConfiguration_177(response.configuration, value)
+  _fill_PipetteConfiguration_183(response.configuration, value)
   return response
 
 
 def decode_pipettes_request_pipette_configuration_response(response: pipettes_pb2.PipettesRequestPipetteConfigurationResponse) -> PipetteConfiguration:
   """What Pipettes.request_pipette_configuration returned, from its response."""
   refs: wire.Refs = {}
-  return (_read_PipetteConfiguration_182(response.configuration, refs) if response.HasField('configuration') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesRequestPipetteConfigurationResponse.configuration'))
+  return (_read_PipetteConfiguration_188(response.configuration, refs) if response.HasField('configuration') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesRequestPipetteConfigurationResponse.configuration'))
 
 
 def encode_pipettes_request_stop_disc_z_position_request(*, channel: int) -> pipettes_pb2.PipettesRequestStopDiscZPositionRequest:
@@ -4306,15 +4342,15 @@ async def call_pipettes_request_stop_disc_z_positions(target: Pipettes, request:
 def encode_pipettes_request_stop_disc_z_positions_response(value: List[float]) -> pipettes_pb2.PipettesRequestStopDiscZPositionsResponse:
   """What Pipettes.request_stop_disc_z_positions returned, as its response."""
   response = pipettes_pb2.PipettesRequestStopDiscZPositionsResponse()
-  for item_187 in value:
-    response.stop_disc_z_positions.append(float(item_187))
+  for item_193 in value:
+    response.stop_disc_z_positions.append(float(item_193))
   return response
 
 
 def decode_pipettes_request_stop_disc_z_positions_response(response: pipettes_pb2.PipettesRequestStopDiscZPositionsResponse) -> List[float]:
   """What Pipettes.request_stop_disc_z_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_188 for item_188 in response.stop_disc_z_positions]
+  return [item_194 for item_194 in response.stop_disc_z_positions]
 
 
 def encode_pipettes_request_tadm_mode_request(*, channel: int) -> pipettes_pb2.PipettesRequestTadmModeRequest:
@@ -4412,15 +4448,15 @@ async def call_pipettes_request_tool_bottom_z_positions(target: Pipettes, reques
 def encode_pipettes_request_tool_bottom_z_positions_response(value: List[float]) -> pipettes_pb2.PipettesRequestToolBottomZPositionsResponse:
   """What Pipettes.request_tool_bottom_z_positions returned, as its response."""
   response = pipettes_pb2.PipettesRequestToolBottomZPositionsResponse()
-  for item_189 in value:
-    response.tool_bottom_z_positions.append(float(item_189))
+  for item_195 in value:
+    response.tool_bottom_z_positions.append(float(item_195))
   return response
 
 
 def decode_pipettes_request_tool_bottom_z_positions_response(response: pipettes_pb2.PipettesRequestToolBottomZPositionsResponse) -> List[float]:
   """What Pipettes.request_tool_bottom_z_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_190 for item_190 in response.tool_bottom_z_positions]
+  return [item_196 for item_196 in response.tool_bottom_z_positions]
 
 
 def encode_pipettes_request_x_position_request() -> pipettes_pb2.PipettesRequestXPositionRequest:
@@ -4515,15 +4551,15 @@ async def call_pipettes_request_y_positions(target: Pipettes, request: pipettes_
 def encode_pipettes_request_y_positions_response(value: List[float]) -> pipettes_pb2.PipettesRequestYPositionsResponse:
   """What Pipettes.request_y_positions returned, as its response."""
   response = pipettes_pb2.PipettesRequestYPositionsResponse()
-  for item_191 in value:
-    response.y_positions.append(float(item_191))
+  for item_197 in value:
+    response.y_positions.append(float(item_197))
   return response
 
 
 def decode_pipettes_request_y_positions_response(response: pipettes_pb2.PipettesRequestYPositionsResponse) -> List[float]:
   """What Pipettes.request_y_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_192 for item_192 in response.y_positions]
+  return [item_198 for item_198 in response.y_positions]
 
 
 def encode_pipettes_request_y_speed_request(*, channel: int) -> pipettes_pb2.PipettesRequestYSpeedRequest:
@@ -4639,35 +4675,35 @@ def encode_pipettes_return_tips_request(*, use_channels: Optional[List[int]], kw
   if use_channels is not None:
     request.use_channels.SetInParent()
     _fill_Int32List_34(request.use_channels, use_channels)
-  for key_193, item_194 in kwargs.items():
-    if key_193 == 'use_channels':
-      if item_194 is not None:
+  for key_199, item_200 in kwargs.items():
+    if key_199 == 'use_channels':
+      if item_200 is not None:
         request.use_channels.SetInParent()
-        _fill_Int32List_34(request.use_channels, item_194)
-    elif key_193 == 'offsets':
-      if item_194 is not None:
+        _fill_Int32List_34(request.use_channels, item_200)
+    elif key_199 == 'offsets':
+      if item_200 is not None:
         request.offsets.SetInParent()
-        _fill_Vec3List_36(request.offsets, item_194)
-    elif key_193 == 'drop_method':
-      if item_194 is not None:
-        request.drop_method = wire.enum_number(_ENUM_88, 'TipDropMethod', item_194)
-    elif key_193 == 'begin_tip_deposit_process':
-      if item_194 is not None:
-        request.begin_tip_deposit_process = float(item_194)
-    elif key_193 == 'end_tip_deposit_process':
-      if item_194 is not None:
-        request.end_tip_deposit_process = float(item_194)
-    elif key_193 == 'minimum_traverse_height_start':
-      if item_194 is not None:
-        request.minimum_traverse_height_start = float(item_194)
-    elif key_193 == 'minimum_traverse_height_end':
-      if item_194 is not None:
-        request.minimum_traverse_height_end = float(item_194)
-    elif key_193 == 'x_tolerance':
-      if item_194 is not None:
-        request.x_tolerance = float(item_194)
+        _fill_Vec3List_36(request.offsets, item_200)
+    elif key_199 == 'drop_method':
+      if item_200 is not None:
+        request.drop_method = wire.enum_number(_ENUM_98, 'TipDropMethod', item_200)
+    elif key_199 == 'begin_tip_deposit_process':
+      if item_200 is not None:
+        request.begin_tip_deposit_process = float(item_200)
+    elif key_199 == 'end_tip_deposit_process':
+      if item_200 is not None:
+        request.end_tip_deposit_process = float(item_200)
+    elif key_199 == 'minimum_traverse_height_start':
+      if item_200 is not None:
+        request.minimum_traverse_height_start = float(item_200)
+    elif key_199 == 'minimum_traverse_height_end':
+      if item_200 is not None:
+        request.minimum_traverse_height_end = float(item_200)
+    elif key_199 == 'x_tolerance':
+      if item_200 is not None:
+        request.x_tolerance = float(item_200)
     else:
-      raise TypeError(f"return_tips() got an unexpected keyword argument '{key_193}'")
+      raise TypeError(f"return_tips() got an unexpected keyword argument '{key_199}'")
   return request
 
 
@@ -4682,7 +4718,7 @@ async def call_pipettes_return_tips(target: Pipettes, request: pipettes_pb2.Pipe
   if request.HasField('offsets'):
     extra['offsets'] = _read_Vec3List_63(request.offsets, refs)
   if request.HasField('drop_method'):
-    extra['drop_method'] = _VALUES_89[request.drop_method]
+    extra['drop_method'] = _VALUES_99[request.drop_method]
   if request.HasField('begin_tip_deposit_process'):
     extra['begin_tip_deposit_process'] = request.begin_tip_deposit_process
   if request.HasField('end_tip_deposit_process'):
@@ -4722,15 +4758,15 @@ async def call_pipettes_sense_tip_presence(target: Pipettes, request: pipettes_p
 def encode_pipettes_sense_tip_presence_response(value: List[int]) -> pipettes_pb2.PipettesSenseTipPresenceResponse:
   """What Pipettes.sense_tip_presence returned, as its response."""
   response = pipettes_pb2.PipettesSenseTipPresenceResponse()
-  for item_195 in value:
-    response.presence.append(int(item_195))
+  for item_201 in value:
+    response.presence.append(int(item_201))
   return response
 
 
 def decode_pipettes_sense_tip_presence_response(response: pipettes_pb2.PipettesSenseTipPresenceResponse) -> List[int]:
   """What Pipettes.sense_tip_presence returned, from its response."""
   refs: wire.Refs = {}
-  return [item_196 for item_196 in response.presence]
+  return [item_202 for item_202 in response.presence]
 
 
 def encode_pipettes_set_tadm_mode_request(*, channel: int, enabled: bool) -> pipettes_pb2.PipettesSetTadmModeRequest:
@@ -4792,7 +4828,7 @@ def decode_pipettes_spread_channels_response(response: pipettes_pb2.PipettesSpre
 
 
 # pylabrobot.hamilton.star.server.v1.TADMStorageLevel's values, by their names' suffixes.
-_ENUM_197: Dict[str, types_pb2.TADMStorageLevel] = {'UNSPECIFIED': types_pb2.TADM_STORAGE_LEVEL_UNSPECIFIED, 'NONE': types_pb2.TADM_STORAGE_LEVEL_NONE, 'ERRORS_ONLY': types_pb2.TADM_STORAGE_LEVEL_ERRORS_ONLY, 'ALL': types_pb2.TADM_STORAGE_LEVEL_ALL}
+_ENUM_203: Dict[str, types_pb2.TADMStorageLevel] = {'UNSPECIFIED': types_pb2.TADM_STORAGE_LEVEL_UNSPECIFIED, 'NONE': types_pb2.TADM_STORAGE_LEVEL_NONE, 'ERRORS_ONLY': types_pb2.TADM_STORAGE_LEVEL_ERRORS_ONLY, 'ALL': types_pb2.TADM_STORAGE_LEVEL_ALL}
 
 
 def encode_pipettes_start_tadm_monitoring_request(*, channel: int, enforce_limit_curve_control: bool, storage_level: Literal['none', 'errors_only', 'all'], limit_curve_index: int, measurement_id: Optional[str]) -> pipettes_pb2.PipettesStartTadmMonitoringRequest:
@@ -4800,7 +4836,7 @@ def encode_pipettes_start_tadm_monitoring_request(*, channel: int, enforce_limit
   request = pipettes_pb2.PipettesStartTadmMonitoringRequest()
   request.channel = int(channel)
   request.enforce_limit_curve_control = bool(enforce_limit_curve_control)
-  request.storage_level = wire.enum_number(_ENUM_197, 'TADMStorageLevel', storage_level)
+  request.storage_level = wire.enum_number(_ENUM_203, 'TADMStorageLevel', storage_level)
   request.limit_curve_index = int(limit_curve_index)
   if measurement_id is not None:
     request.measurement_id = wire.text(measurement_id)
@@ -4808,7 +4844,7 @@ def encode_pipettes_start_tadm_monitoring_request(*, channel: int, enforce_limit
 
 
 # What pylabrobot.hamilton.star.server.v1.TADMStorageLevel's numbers are, as Literal['none', 'errors_only', 'all'].
-_VALUES_198: Dict[int, Literal['none', 'errors_only', 'all']] = {1: 'none', 2: 'errors_only', 3: 'all'}
+_VALUES_204: Dict[int, Literal['none', 'errors_only', 'all']] = {1: 'none', 2: 'errors_only', 3: 'all'}
 
 
 async def call_pipettes_start_tadm_monitoring(target: Pipettes, request: pipettes_pb2.PipettesStartTadmMonitoringRequest, refs: wire.Refs) -> None:
@@ -4822,7 +4858,7 @@ async def call_pipettes_start_tadm_monitoring(target: Pipettes, request: pipette
     a_enforce_limit_curve_control = True
   a_storage_level: Literal['none', 'errors_only', 'all']
   if request.HasField('storage_level'):
-    a_storage_level = _VALUES_198[request.storage_level]
+    a_storage_level = _VALUES_204[request.storage_level]
   else:
     a_storage_level = 'all'
   a_limit_curve_index: int
@@ -4916,7 +4952,7 @@ def decode_pipettes_update_location_by_reference_point_response(response: pipett
   return None
 
 
-def _fill_ReferencePointYZ_201(message: types_pb2.ReferencePointYZ, value: Tuple[Union[float, None], Union[float, None]]) -> None:
+def _fill_ReferencePointYZ_207(message: types_pb2.ReferencePointYZ, value: Tuple[Union[float, None], Union[float, None]]) -> None:
   if value[0] is not None:
     message.y = float(value[0])
   if value[1] is not None:
@@ -4926,19 +4962,19 @@ def _fill_ReferencePointYZ_201(message: types_pb2.ReferencePointYZ, value: Tuple
 def encode_pipettes_update_locations_by_reference_point_request(*, positions: Dict[int, Tuple[Optional[float], Optional[float]]]) -> pipettes_pb2.PipettesUpdateLocationsByReferencePointRequest:
   """A call to Pipettes.update_locations_by_reference_point, as its request."""
   request = pipettes_pb2.PipettesUpdateLocationsByReferencePointRequest()
-  for key_199, item_200 in positions.items():
-    _fill_ReferencePointYZ_201(request.positions[key_199], item_200)
+  for key_205, item_206 in positions.items():
+    _fill_ReferencePointYZ_207(request.positions[key_205], item_206)
   return request
 
 
-def _read_ReferencePointYZ_204(message: types_pb2.ReferencePointYZ, refs: wire.Refs) -> Tuple[Union[float, None], Union[float, None]]:
+def _read_ReferencePointYZ_210(message: types_pb2.ReferencePointYZ, refs: wire.Refs) -> Tuple[Union[float, None], Union[float, None]]:
   return ((message.y if message.HasField('y') else None), (message.z if message.HasField('z') else None))
 
 
 async def call_pipettes_update_locations_by_reference_point(target: Pipettes, request: pipettes_pb2.PipettesUpdateLocationsByReferencePointRequest, refs: wire.Refs) -> None:
   """The call to Pipettes.update_locations_by_reference_point a request asks for."""
   a_positions: Dict[int, Tuple[Optional[float], Optional[float]]]
-  a_positions = {key_202: _read_ReferencePointYZ_204(item_203, refs) for key_202, item_203 in request.positions.items()}
+  a_positions = {key_208: _read_ReferencePointYZ_210(item_209, refs) for key_208, item_209 in request.positions.items()}
   return await target.update_locations_by_reference_point(positions=a_positions)
 
 
@@ -5026,13 +5062,13 @@ def put_pipettes_settings(feature: Pipettes, message: pipettes_pb2.PipettesSetti
     feature.default_x_grouping_tolerance = message.default_x_grouping_tolerance
 
 
-def _fill_ResourceRefList_205(message: types_pb2.ResourceRefList, value: List[Well]) -> None:
-  for item_206 in value:
-    wire.fill_ref(message.values.add(), item_206)
+def _fill_ResourceRefList_211(message: types_pb2.ResourceRefList, value: List[Well]) -> None:
+  for item_212 in value:
+    wire.fill_ref(message.values.add(), item_212)
 
 
 # pylabrobot.hamilton.star.server.v1.LLDSensor's values, by their names' suffixes.
-_ENUM_207: Dict[str, types_pb2.LLDSensor] = {'UNSPECIFIED': types_pb2.LLD_SENSOR_UNSPECIFIED, 'A1_OR_B2': types_pb2.LLD_SENSOR_A1_OR_B2, 'G11_OR_H12': types_pb2.LLD_SENSOR_G11_OR_H12, 'ANY': types_pb2.LLD_SENSOR_ANY, 'ALL': types_pb2.LLD_SENSOR_ALL}
+_ENUM_213: Dict[str, types_pb2.LLDSensor] = {'UNSPECIFIED': types_pb2.LLD_SENSOR_UNSPECIFIED, 'A1_OR_B2': types_pb2.LLD_SENSOR_A1_OR_B2, 'G11_OR_H12': types_pb2.LLD_SENSOR_G11_OR_H12, 'ANY': types_pb2.LLD_SENSOR_ANY, 'ALL': types_pb2.LLD_SENSOR_ALL}
 
 
 def encode_head96_aspirate_request(*, resource: Union[handles.Plate, handles.Container, List[handles.Well]], volume: Optional[float], offset: Optional[Coordinate], liquid_height: Optional[float], lld_mode: Optional[LLDMode], flow_rate: Optional[float], hamilton_liquid_class: Optional[HamiltonLiquidClass], jet: bool, blow_out: bool, piston_volume: Optional[float], lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all'], search_speed: float, approach_speed: Optional[float], blow_out_air_volume: Optional[float], immersion_depth: Optional[float], minimum_allowed_z_position_during: Optional[float], pre_wetting_volume: Optional[float], pre_mix: Optional[Mix], mix_position_from_liquid_surface: Optional[float], surface_following_distance: float, auto_surface_following: bool, second_section_height: Optional[float], second_section_ratio: Optional[float], settling_time: Optional[float], swap_speed: Optional[float], pull_out_distance_transport_air: Optional[float], transport_air_volume: Optional[float], limit_curve_index: Optional[int], minimum_traverse_height_start: Optional[float], minimum_traverse_height_end: Optional[float]) -> head96_pb2.Head96AspirateRequest:
@@ -5043,7 +5079,7 @@ def encode_head96_aspirate_request(*, resource: Union[handles.Plate, handles.Con
     wire.fill_ref(request.resource_resource, resource)
   elif (isinstance(resource, (list, tuple))):
     request.resource_each.SetInParent()
-    _fill_ResourceRefList_205(request.resource_each, resource)
+    _fill_ResourceRefList_211(request.resource_each, resource)
   else:
     raise TypeError(f"resource: {resource!r} is none of Union[Plate, Container, List[Well]]")
   if volume is not None:
@@ -5064,7 +5100,7 @@ def encode_head96_aspirate_request(*, resource: Union[handles.Plate, handles.Con
   request.blow_out = bool(blow_out)
   if piston_volume is not None:
     request.piston_volume = float(piston_volume)
-  request.lld_sensor = wire.enum_number(_ENUM_207, 'LLDSensor', lld_sensor)
+  request.lld_sensor = wire.enum_number(_ENUM_213, 'LLDSensor', lld_sensor)
   request.search_speed = float(search_speed)
   if approach_speed is not None:
     request.approach_speed = float(approach_speed)
@@ -5104,22 +5140,22 @@ def encode_head96_aspirate_request(*, resource: Union[handles.Plate, handles.Con
   return request
 
 
-def _read_ResourceRefList_209(message: types_pb2.ResourceRefList, refs: wire.Refs) -> List[Well]:
-  return [wire.handle(refs, item_210, Well) for item_210 in message.values]
+def _read_ResourceRefList_215(message: types_pb2.ResourceRefList, refs: wire.Refs) -> List[Well]:
+  return [wire.handle(refs, item_216, Well) for item_216 in message.values]
 
 
 # What pylabrobot.hamilton.star.server.v1.LLDSensor's numbers are, as Literal['A1 or B2', 'G11 or H12', 'any', 'all'].
-_VALUES_211: Dict[int, Literal['A1 or B2', 'G11 or H12', 'any', 'all']] = {1: 'A1 or B2', 2: 'G11 or H12', 3: 'any', 4: 'all'}
+_VALUES_217: Dict[int, Literal['A1 or B2', 'G11 or H12', 'any', 'all']] = {1: 'A1 or B2', 2: 'G11 or H12', 3: 'any', 4: 'all'}
 
 
 async def call_head96_aspirate(target: Head96, request: head96_pb2.Head96AspirateRequest, refs: wire.Refs) -> None:
   """The call to Head96.aspirate a request asks for."""
   a_resource: Union[handles.Plate, handles.Container, List[handles.Well]]
-  which_208 = request.WhichOneof('resource')
-  if which_208 == 'resource_resource':
+  which_214 = request.WhichOneof('resource')
+  if which_214 == 'resource_resource':
     a_resource = cast(Union[Plate, Container], wire.handle_of(refs, request.resource_resource, (Plate, Container,)))
-  elif which_208 == 'resource_each':
-    a_resource = _read_ResourceRefList_209(request.resource_each, refs)
+  elif which_214 == 'resource_each':
+    a_resource = _read_ResourceRefList_215(request.resource_each, refs)
   else:
     raise TypeError("aspirate() missing required argument: 'resource'")
   a_volume: Optional[float]
@@ -5169,7 +5205,7 @@ async def call_head96_aspirate(target: Head96, request: head96_pb2.Head96Aspirat
     a_piston_volume = None
   a_lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all']
   if request.HasField('lld_sensor'):
-    a_lld_sensor = _VALUES_211[request.lld_sensor]
+    a_lld_sensor = _VALUES_217[request.lld_sensor]
   else:
     a_lld_sensor = 'any'
   a_search_speed: float
@@ -5285,23 +5321,23 @@ def decode_head96_aspirate_response(response: head96_pb2.Head96AspirateResponse)
 def encode_head96_discard_tips_request(*, kwargs: Dict[str, Any]) -> head96_pb2.Head96DiscardTipsRequest:
   """A call to Head96.discard_tips, as its request."""
   request = head96_pb2.Head96DiscardTipsRequest()
-  for key_212, item_213 in kwargs.items():
-    if key_212 == 'offset':
-      if item_213 is not None:
+  for key_218, item_219 in kwargs.items():
+    if key_218 == 'offset':
+      if item_219 is not None:
         request.offset.SetInParent()
-        wire.fill_xyz(request.offset, item_213)
-    elif key_212 == 'minimum_traverse_height_end':
-      if item_213 is not None:
-        request.minimum_traverse_height_end = float(item_213)
-    elif key_212 == 'minimum_traverse_height_start':
-      if item_213 is not None:
-        request.minimum_traverse_height_start = float(item_213)
-    elif key_212 == 'channel':
-      request.channel = wire.text(item_213)
-    elif key_212 == 'tip_spot':
-      request.tip_spot = wire.text(item_213)
+        wire.fill_xyz(request.offset, item_219)
+    elif key_218 == 'minimum_traverse_height_end':
+      if item_219 is not None:
+        request.minimum_traverse_height_end = float(item_219)
+    elif key_218 == 'minimum_traverse_height_start':
+      if item_219 is not None:
+        request.minimum_traverse_height_start = float(item_219)
+    elif key_218 == 'channel':
+      request.channel = wire.text(item_219)
+    elif key_218 == 'tip_spot':
+      request.tip_spot = wire.text(item_219)
     else:
-      raise TypeError(f"discard_tips() got an unexpected keyword argument '{key_212}'")
+      raise TypeError(f"discard_tips() got an unexpected keyword argument '{key_218}'")
   return request
 
 
@@ -5364,7 +5400,7 @@ def encode_head96_dispense_request(*, resource: Union[handles.Plate, handles.Con
     wire.fill_ref(request.resource_resource, resource)
   elif (isinstance(resource, (list, tuple))):
     request.resource_each.SetInParent()
-    _fill_ResourceRefList_205(request.resource_each, resource)
+    _fill_ResourceRefList_211(request.resource_each, resource)
   else:
     raise TypeError(f"resource: {resource!r} is none of Union[Plate, Container, List[Well]]")
   if volume is not None:
@@ -5386,7 +5422,7 @@ def encode_head96_dispense_request(*, resource: Union[handles.Plate, handles.Con
   request.empty = bool(empty)
   if piston_volume is not None:
     request.piston_volume = float(piston_volume)
-  request.lld_sensor = wire.enum_number(_ENUM_207, 'LLDSensor', lld_sensor)
+  request.lld_sensor = wire.enum_number(_ENUM_213, 'LLDSensor', lld_sensor)
   request.search_speed = float(search_speed)
   if approach_speed is not None:
     request.approach_speed = float(approach_speed)
@@ -5432,11 +5468,11 @@ def encode_head96_dispense_request(*, resource: Union[handles.Plate, handles.Con
 async def call_head96_dispense(target: Head96, request: head96_pb2.Head96DispenseRequest, refs: wire.Refs) -> None:
   """The call to Head96.dispense a request asks for."""
   a_resource: Union[handles.Plate, handles.Container, List[handles.Well]]
-  which_214 = request.WhichOneof('resource')
-  if which_214 == 'resource_resource':
+  which_220 = request.WhichOneof('resource')
+  if which_220 == 'resource_resource':
     a_resource = cast(Union[Plate, Container], wire.handle_of(refs, request.resource_resource, (Plate, Container,)))
-  elif which_214 == 'resource_each':
-    a_resource = _read_ResourceRefList_209(request.resource_each, refs)
+  elif which_220 == 'resource_each':
+    a_resource = _read_ResourceRefList_215(request.resource_each, refs)
   else:
     raise TypeError("dispense() missing required argument: 'resource'")
   a_volume: Optional[float]
@@ -5491,7 +5527,7 @@ async def call_head96_dispense(target: Head96, request: head96_pb2.Head96Dispens
     a_piston_volume = None
   a_lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all']
   if request.HasField('lld_sensor'):
-    a_lld_sensor = _VALUES_211[request.lld_sensor]
+    a_lld_sensor = _VALUES_217[request.lld_sensor]
   else:
     a_lld_sensor = 'any'
   a_search_speed: float
@@ -5807,7 +5843,7 @@ def encode_head96_mix_request(*, resource: Union[handles.Plate, handles.Containe
     wire.fill_ref(request.resource_resource, resource)
   elif (isinstance(resource, (list, tuple))):
     request.resource_each.SetInParent()
-    _fill_ResourceRefList_205(request.resource_each, resource)
+    _fill_ResourceRefList_211(request.resource_each, resource)
   else:
     raise TypeError(f"resource: {resource!r} is none of Union[Plate, Container, List[Well]]")
   request.mix.SetInParent()
@@ -5819,7 +5855,7 @@ def encode_head96_mix_request(*, resource: Union[handles.Plate, handles.Containe
     request.minimum_traverse_height_start = float(minimum_traverse_height_start)
   if lld_mode is not None:
     request.lld_mode = wire.enum_number(_ENUM_41, 'LLDMode', lld_mode)
-  request.lld_sensor = wire.enum_number(_ENUM_207, 'LLDSensor', lld_sensor)
+  request.lld_sensor = wire.enum_number(_ENUM_213, 'LLDSensor', lld_sensor)
   if search_speed is not None:
     request.search_speed = float(search_speed)
   if descent_speed is not None:
@@ -5839,11 +5875,11 @@ def encode_head96_mix_request(*, resource: Union[handles.Plate, handles.Containe
 async def call_head96_mix(target: Head96, request: head96_pb2.Head96MixRequest, refs: wire.Refs) -> None:
   """The call to Head96.mix a request asks for."""
   a_resource: Union[handles.Plate, handles.Container, List[handles.Well]]
-  which_215 = request.WhichOneof('resource')
-  if which_215 == 'resource_resource':
+  which_221 = request.WhichOneof('resource')
+  if which_221 == 'resource_resource':
     a_resource = cast(Union[Plate, Container], wire.handle_of(refs, request.resource_resource, (Plate, Container,)))
-  elif which_215 == 'resource_each':
-    a_resource = _read_ResourceRefList_209(request.resource_each, refs)
+  elif which_221 == 'resource_each':
+    a_resource = _read_ResourceRefList_215(request.resource_each, refs)
   else:
     raise TypeError("mix() missing required argument: 'resource'")
   a_mix: Mix
@@ -5868,7 +5904,7 @@ async def call_head96_mix(target: Head96, request: head96_pb2.Head96MixRequest, 
     a_lld_mode = None
   a_lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all']
   if request.HasField('lld_sensor'):
-    a_lld_sensor = _VALUES_211[request.lld_sensor]
+    a_lld_sensor = _VALUES_217[request.lld_sensor]
   else:
     a_lld_sensor = 'any'
   a_search_speed: Optional[float]
@@ -6360,7 +6396,7 @@ def decode_head96_park_response(response: head_pb2.HeadParkResponse) -> float:
 
 
 # pylabrobot.hamilton.star.server.v1.Head96TipPickupMethod's values, by their names' suffixes.
-_ENUM_216: Dict[str, types_pb2.Head96TipPickupMethod] = {'UNSPECIFIED': types_pb2.HEAD96_TIP_PICKUP_METHOD_UNSPECIFIED, 'FROM_RACK': types_pb2.HEAD96_TIP_PICKUP_METHOD_FROM_RACK, 'FROM_WASTE': types_pb2.HEAD96_TIP_PICKUP_METHOD_FROM_WASTE, 'FULL_BLOWOUT': types_pb2.HEAD96_TIP_PICKUP_METHOD_FULL_BLOWOUT}
+_ENUM_222: Dict[str, types_pb2.Head96TipPickupMethod] = {'UNSPECIFIED': types_pb2.HEAD96_TIP_PICKUP_METHOD_UNSPECIFIED, 'FROM_RACK': types_pb2.HEAD96_TIP_PICKUP_METHOD_FROM_RACK, 'FROM_WASTE': types_pb2.HEAD96_TIP_PICKUP_METHOD_FROM_WASTE, 'FULL_BLOWOUT': types_pb2.HEAD96_TIP_PICKUP_METHOD_FULL_BLOWOUT}
 
 
 def encode_head96_pick_up_tips_request(*, tip_rack: handles.TipRack, offset: Optional[Coordinate], tip_pickup_method: Literal['from_rack', 'from_waste', 'full_blowout'], minimum_traverse_height_end: Optional[float], minimum_traverse_height_start: Optional[float], channel: str, tip_spot: str) -> head96_pb2.Head96PickUpTipsRequest:
@@ -6371,7 +6407,7 @@ def encode_head96_pick_up_tips_request(*, tip_rack: handles.TipRack, offset: Opt
   if offset is not None:
     request.offset.SetInParent()
     wire.fill_xyz(request.offset, offset)
-  request.tip_pickup_method = wire.enum_number(_ENUM_216, 'Head96TipPickupMethod', tip_pickup_method)
+  request.tip_pickup_method = wire.enum_number(_ENUM_222, 'Head96TipPickupMethod', tip_pickup_method)
   if minimum_traverse_height_end is not None:
     request.minimum_traverse_height_end = float(minimum_traverse_height_end)
   if minimum_traverse_height_start is not None:
@@ -6382,7 +6418,7 @@ def encode_head96_pick_up_tips_request(*, tip_rack: handles.TipRack, offset: Opt
 
 
 # What pylabrobot.hamilton.star.server.v1.Head96TipPickupMethod's numbers are, as Literal['from_rack', 'from_waste', 'full_blowout'].
-_VALUES_217: Dict[int, Literal['from_rack', 'from_waste', 'full_blowout']] = {1: 'from_rack', 2: 'from_waste', 3: 'full_blowout'}
+_VALUES_223: Dict[int, Literal['from_rack', 'from_waste', 'full_blowout']] = {1: 'from_rack', 2: 'from_waste', 3: 'full_blowout'}
 
 
 async def call_head96_pick_up_tips(target: Head96, request: head96_pb2.Head96PickUpTipsRequest, refs: wire.Refs) -> None:
@@ -6399,7 +6435,7 @@ async def call_head96_pick_up_tips(target: Head96, request: head96_pb2.Head96Pic
     a_offset = None
   a_tip_pickup_method: Literal['from_rack', 'from_waste', 'full_blowout']
   if request.HasField('tip_pickup_method'):
-    a_tip_pickup_method = _VALUES_217[request.tip_pickup_method]
+    a_tip_pickup_method = _VALUES_223[request.tip_pickup_method]
   else:
     a_tip_pickup_method = 'from_rack'
   a_minimum_traverse_height_end: Optional[float]
@@ -6445,13 +6481,13 @@ def encode_head96_probe_liquid_height_request(*, resource: Union[handles.Plate, 
     wire.fill_ref(request.resource_resource, resource)
   elif (isinstance(resource, (list, tuple))):
     request.resource_each.SetInParent()
-    _fill_ResourceRefList_205(request.resource_each, resource)
+    _fill_ResourceRefList_211(request.resource_each, resource)
   else:
     raise TypeError(f"resource: {resource!r} is none of Union[Plate, Container, List[Well]]")
   if offset is not None:
     request.offset.SetInParent()
     wire.fill_xyz(request.offset, offset)
-  request.lld_sensor = wire.enum_number(_ENUM_207, 'LLDSensor', lld_sensor)
+  request.lld_sensor = wire.enum_number(_ENUM_213, 'LLDSensor', lld_sensor)
   if search_speed is not None:
     request.search_speed = float(search_speed)
   request.n_replicates = int(n_replicates)
@@ -6465,11 +6501,11 @@ def encode_head96_probe_liquid_height_request(*, resource: Union[handles.Plate, 
 async def call_head96_probe_liquid_height(target: Head96, request: head96_pb2.Head96ProbeLiquidHeightRequest, refs: wire.Refs) -> float:
   """The call to Head96.probe_liquid_height a request asks for."""
   a_resource: Union[handles.Plate, handles.Container, List[handles.Well]]
-  which_218 = request.WhichOneof('resource')
-  if which_218 == 'resource_resource':
+  which_224 = request.WhichOneof('resource')
+  if which_224 == 'resource_resource':
     a_resource = cast(Union[Plate, Container], wire.handle_of(refs, request.resource_resource, (Plate, Container,)))
-  elif which_218 == 'resource_each':
-    a_resource = _read_ResourceRefList_209(request.resource_each, refs)
+  elif which_224 == 'resource_each':
+    a_resource = _read_ResourceRefList_215(request.resource_each, refs)
   else:
     raise TypeError("probe_liquid_height() missing required argument: 'resource'")
   a_offset: Optional[Coordinate]
@@ -6479,7 +6515,7 @@ async def call_head96_probe_liquid_height(target: Head96, request: head96_pb2.He
     a_offset = None
   a_lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all']
   if request.HasField('lld_sensor'):
-    a_lld_sensor = _VALUES_211[request.lld_sensor]
+    a_lld_sensor = _VALUES_217[request.lld_sensor]
   else:
     a_lld_sensor = 'any'
   a_search_speed: Optional[float]
@@ -6526,13 +6562,13 @@ def encode_head96_probe_liquid_volume_request(*, resource: Union[handles.Plate, 
     wire.fill_ref(request.resource_resource, resource)
   elif (isinstance(resource, (list, tuple))):
     request.resource_each.SetInParent()
-    _fill_ResourceRefList_205(request.resource_each, resource)
+    _fill_ResourceRefList_211(request.resource_each, resource)
   else:
     raise TypeError(f"resource: {resource!r} is none of Union[Plate, Container, List[Well]]")
   if offset is not None:
     request.offset.SetInParent()
     wire.fill_xyz(request.offset, offset)
-  request.lld_sensor = wire.enum_number(_ENUM_207, 'LLDSensor', lld_sensor)
+  request.lld_sensor = wire.enum_number(_ENUM_213, 'LLDSensor', lld_sensor)
   if search_speed is not None:
     request.search_speed = float(search_speed)
   request.n_replicates = int(n_replicates)
@@ -6546,11 +6582,11 @@ def encode_head96_probe_liquid_volume_request(*, resource: Union[handles.Plate, 
 async def call_head96_probe_liquid_volume(target: Head96, request: head96_pb2.Head96ProbeLiquidVolumeRequest, refs: wire.Refs) -> float:
   """The call to Head96.probe_liquid_volume a request asks for."""
   a_resource: Union[handles.Plate, handles.Container, List[handles.Well]]
-  which_219 = request.WhichOneof('resource')
-  if which_219 == 'resource_resource':
+  which_225 = request.WhichOneof('resource')
+  if which_225 == 'resource_resource':
     a_resource = cast(Union[Plate, Container], wire.handle_of(refs, request.resource_resource, (Plate, Container,)))
-  elif which_219 == 'resource_each':
-    a_resource = _read_ResourceRefList_209(request.resource_each, refs)
+  elif which_225 == 'resource_each':
+    a_resource = _read_ResourceRefList_215(request.resource_each, refs)
   else:
     raise TypeError("probe_liquid_volume() missing required argument: 'resource'")
   a_offset: Optional[Coordinate]
@@ -6560,7 +6596,7 @@ async def call_head96_probe_liquid_volume(target: Head96, request: head96_pb2.He
     a_offset = None
   a_lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all']
   if request.HasField('lld_sensor'):
-    a_lld_sensor = _VALUES_211[request.lld_sensor]
+    a_lld_sensor = _VALUES_217[request.lld_sensor]
   else:
     a_lld_sensor = 'any'
   a_search_speed: Optional[float]
@@ -6646,7 +6682,7 @@ def encode_head96_probe_z_using_clld_request(*, search_start_position: Optional[
     request.acceleration = float(acceleration)
   if current_limit is not None:
     request.current_limit = int(current_limit)
-  request.lld_sensor = wire.enum_number(_ENUM_207, 'LLDSensor', lld_sensor)
+  request.lld_sensor = wire.enum_number(_ENUM_213, 'LLDSensor', lld_sensor)
   if detection_edge is not None:
     request.detection_edge = int(detection_edge)
   if detection_drop is not None:
@@ -6698,7 +6734,7 @@ async def call_head96_probe_z_using_clld(target: Head96, request: head96_pb2.Hea
     a_current_limit = None
   a_lld_sensor: Literal['A1 or B2', 'G11 or H12', 'any', 'all']
   if request.HasField('lld_sensor'):
-    a_lld_sensor = _VALUES_211[request.lld_sensor]
+    a_lld_sensor = _VALUES_217[request.lld_sensor]
   else:
     a_lld_sensor = 'any'
   a_detection_edge: Optional[int]
@@ -6814,15 +6850,15 @@ async def call_head96_request_hardware(target: Head96, request: head_pb2.HeadReq
 def encode_head96_request_hardware_response(value: List[str]) -> head_pb2.HeadRequestHardwareResponse:
   """What Head96.request_hardware returned, as its response."""
   response = head_pb2.HeadRequestHardwareResponse()
-  for item_220 in value:
-    response.hardware.append(wire.text(item_220))
+  for item_226 in value:
+    response.hardware.append(wire.text(item_226))
   return response
 
 
 def decode_head96_request_hardware_response(response: head_pb2.HeadRequestHardwareResponse) -> List[str]:
   """What Head96.request_hardware returned, from its response."""
   refs: wire.Refs = {}
-  return [item_221 for item_221 in response.hardware]
+  return [item_227 for item_227 in response.hardware]
 
 
 def encode_head96_request_head_type_request() -> head_pb2.HeadRequestHeadTypeRequest:
@@ -6912,15 +6948,15 @@ async def call_head96_request_predefined_y_positions(target: Head96, request: he
 def encode_head96_request_predefined_y_positions_response(value: List[float]) -> head_pb2.HeadRequestPredefinedYPositionsResponse:
   """What Head96.request_predefined_y_positions returned, as its response."""
   response = head_pb2.HeadRequestPredefinedYPositionsResponse()
-  for item_222 in value:
-    response.predefined_y_positions.append(float(item_222))
+  for item_228 in value:
+    response.predefined_y_positions.append(float(item_228))
   return response
 
 
 def decode_head96_request_predefined_y_positions_response(response: head_pb2.HeadRequestPredefinedYPositionsResponse) -> List[float]:
   """What Head96.request_predefined_y_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_223 for item_223 in response.predefined_y_positions]
+  return [item_229 for item_229 in response.predefined_y_positions]
 
 
 def encode_head96_request_predefined_z_positions_request() -> head_pb2.HeadRequestPredefinedZPositionsRequest:
@@ -6937,15 +6973,15 @@ async def call_head96_request_predefined_z_positions(target: Head96, request: he
 def encode_head96_request_predefined_z_positions_response(value: List[float]) -> head_pb2.HeadRequestPredefinedZPositionsResponse:
   """What Head96.request_predefined_z_positions returned, as its response."""
   response = head_pb2.HeadRequestPredefinedZPositionsResponse()
-  for item_224 in value:
-    response.predefined_z_positions.append(float(item_224))
+  for item_230 in value:
+    response.predefined_z_positions.append(float(item_230))
   return response
 
 
 def decode_head96_request_predefined_z_positions_response(response: head_pb2.HeadRequestPredefinedZPositionsResponse) -> List[float]:
   """What Head96.request_predefined_z_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_225 for item_225 in response.predefined_z_positions]
+  return [item_231 for item_231 in response.predefined_z_positions]
 
 
 def encode_head96_request_tip_overhang_request() -> head_pb2.HeadRequestTipOverhangRequest:
@@ -7095,23 +7131,23 @@ def decode_head96_request_z_position_response(response: head_pb2.HeadRequestZPos
 def encode_head96_return_tips_request(*, kwargs: Dict[str, Any]) -> head96_pb2.Head96ReturnTipsRequest:
   """A call to Head96.return_tips, as its request."""
   request = head96_pb2.Head96ReturnTipsRequest()
-  for key_226, item_227 in kwargs.items():
-    if key_226 == 'offset':
-      if item_227 is not None:
+  for key_232, item_233 in kwargs.items():
+    if key_232 == 'offset':
+      if item_233 is not None:
         request.offset.SetInParent()
-        wire.fill_xyz(request.offset, item_227)
-    elif key_226 == 'minimum_traverse_height_end':
-      if item_227 is not None:
-        request.minimum_traverse_height_end = float(item_227)
-    elif key_226 == 'minimum_traverse_height_start':
-      if item_227 is not None:
-        request.minimum_traverse_height_start = float(item_227)
-    elif key_226 == 'channel':
-      request.channel = wire.text(item_227)
-    elif key_226 == 'tip_spot':
-      request.tip_spot = wire.text(item_227)
+        wire.fill_xyz(request.offset, item_233)
+    elif key_232 == 'minimum_traverse_height_end':
+      if item_233 is not None:
+        request.minimum_traverse_height_end = float(item_233)
+    elif key_232 == 'minimum_traverse_height_start':
+      if item_233 is not None:
+        request.minimum_traverse_height_start = float(item_233)
+    elif key_232 == 'channel':
+      request.channel = wire.text(item_233)
+    elif key_232 == 'tip_spot':
+      request.tip_spot = wire.text(item_233)
     else:
-      raise TypeError(f"return_tips() got an unexpected keyword argument '{key_226}'")
+      raise TypeError(f"return_tips() got an unexpected keyword argument '{key_232}'")
   return request
 
 
@@ -8005,15 +8041,15 @@ async def call_head384_request_hardware(target: Head384, request: head_pb2.HeadR
 def encode_head384_request_hardware_response(value: List[str]) -> head_pb2.HeadRequestHardwareResponse:
   """What Head384.request_hardware returned, as its response."""
   response = head_pb2.HeadRequestHardwareResponse()
-  for item_228 in value:
-    response.hardware.append(wire.text(item_228))
+  for item_234 in value:
+    response.hardware.append(wire.text(item_234))
   return response
 
 
 def decode_head384_request_hardware_response(response: head_pb2.HeadRequestHardwareResponse) -> List[str]:
   """What Head384.request_hardware returned, from its response."""
   refs: wire.Refs = {}
-  return [item_229 for item_229 in response.hardware]
+  return [item_235 for item_235 in response.hardware]
 
 
 def encode_head384_request_head_type_request() -> head_pb2.HeadRequestHeadTypeRequest:
@@ -8079,15 +8115,15 @@ async def call_head384_request_predefined_y_positions(target: Head384, request: 
 def encode_head384_request_predefined_y_positions_response(value: List[float]) -> head_pb2.HeadRequestPredefinedYPositionsResponse:
   """What Head384.request_predefined_y_positions returned, as its response."""
   response = head_pb2.HeadRequestPredefinedYPositionsResponse()
-  for item_230 in value:
-    response.predefined_y_positions.append(float(item_230))
+  for item_236 in value:
+    response.predefined_y_positions.append(float(item_236))
   return response
 
 
 def decode_head384_request_predefined_y_positions_response(response: head_pb2.HeadRequestPredefinedYPositionsResponse) -> List[float]:
   """What Head384.request_predefined_y_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_231 for item_231 in response.predefined_y_positions]
+  return [item_237 for item_237 in response.predefined_y_positions]
 
 
 def encode_head384_request_predefined_z_positions_request() -> head_pb2.HeadRequestPredefinedZPositionsRequest:
@@ -8104,15 +8140,15 @@ async def call_head384_request_predefined_z_positions(target: Head384, request: 
 def encode_head384_request_predefined_z_positions_response(value: List[float]) -> head_pb2.HeadRequestPredefinedZPositionsResponse:
   """What Head384.request_predefined_z_positions returned, as its response."""
   response = head_pb2.HeadRequestPredefinedZPositionsResponse()
-  for item_232 in value:
-    response.predefined_z_positions.append(float(item_232))
+  for item_238 in value:
+    response.predefined_z_positions.append(float(item_238))
   return response
 
 
 def decode_head384_request_predefined_z_positions_response(response: head_pb2.HeadRequestPredefinedZPositionsResponse) -> List[float]:
   """What Head384.request_predefined_z_positions returned, from its response."""
   refs: wire.Refs = {}
-  return [item_233 for item_233 in response.predefined_z_positions]
+  return [item_239 for item_239 in response.predefined_z_positions]
 
 
 def encode_head384_request_tip_overhang_request() -> head_pb2.HeadRequestTipOverhangRequest:
@@ -8458,7 +8494,7 @@ async def call_iswap_elbow_drive_request_positions(target: iSWAP, request: iswap
   return await target.elbow_drive_request_positions()
 
 
-def _fill_ISwapElbowPositions_234(message: iswap_pb2.ISwapElbowPositions, value: iSWAPElbowPositions) -> None:
+def _fill_ISwapElbowPositions_240(message: iswap_pb2.ISwapElbowPositions, value: iSWAPElbowPositions) -> None:
   message.home = int(value.home)
   message.left = int(value.left)
   message.front = int(value.front)
@@ -8470,7 +8506,7 @@ def _fill_ISwapElbowPositions_234(message: iswap_pb2.ISwapElbowPositions, value:
   message.extra_4 = int(value.extra_4)
 
 
-def _read_ISwapElbowPositions_235(message: iswap_pb2.ISwapElbowPositions, refs: wire.Refs) -> iSWAPElbowPositions:
+def _read_ISwapElbowPositions_241(message: iswap_pb2.ISwapElbowPositions, refs: wire.Refs) -> iSWAPElbowPositions:
   return iSWAPElbowPositions(
     home=message.home,
     left=message.left,
@@ -8488,14 +8524,14 @@ def encode_iswap_elbow_drive_request_positions_response(value: iSWAPElbowPositio
   """What iSWAP.elbow_drive_request_positions returned, as its response."""
   response = iswap_pb2.ISwapElbowDriveRequestPositionsResponse()
   response.positions.SetInParent()
-  _fill_ISwapElbowPositions_234(response.positions, value)
+  _fill_ISwapElbowPositions_240(response.positions, value)
   return response
 
 
 def decode_iswap_elbow_drive_request_positions_response(response: iswap_pb2.ISwapElbowDriveRequestPositionsResponse) -> iSWAPElbowPositions:
   """What iSWAP.elbow_drive_request_positions returned, from its response."""
   refs: wire.Refs = {}
-  return (_read_ISwapElbowPositions_235(response.positions, refs) if response.HasField('positions') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapElbowDriveRequestPositionsResponse.positions'))
+  return (_read_ISwapElbowPositions_241(response.positions, refs) if response.HasField('positions') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapElbowDriveRequestPositionsResponse.positions'))
 
 
 def encode_iswap_elbow_drive_rotate_to_angle_request(*, angle: Union[str, float], speed: Optional[float], acceleration: Optional[float], current_limit: Optional[int]) -> iswap_pb2.ISwapElbowDriveRotateToAngleRequest:
@@ -8519,10 +8555,10 @@ def encode_iswap_elbow_drive_rotate_to_angle_request(*, angle: Union[str, float]
 async def call_iswap_elbow_drive_rotate_to_angle(target: iSWAP, request: iswap_pb2.ISwapElbowDriveRotateToAngleRequest, refs: wire.Refs) -> Any:
   """The call to iSWAP.elbow_drive_rotate_to_angle a request asks for."""
   a_angle: Union[str, float]
-  which_236 = request.WhichOneof('angle')
-  if which_236 == 'angle_name':
+  which_242 = request.WhichOneof('angle')
+  if which_242 == 'angle_name':
     a_angle = request.angle_name
-  elif which_236 == 'angle_value':
+  elif which_242 == 'angle_value':
     a_angle = request.angle_value
   else:
     raise TypeError("elbow_drive_rotate_to_angle() missing required argument: 'angle'")
@@ -8825,15 +8861,15 @@ async def call_iswap_elbow_request_predefined_z_positions(target: iSWAP, request
 def encode_iswap_elbow_request_predefined_z_positions_response(value: Dict[str, float]) -> iswap_pb2.ISwapElbowRequestPredefinedZPositionsResponse:
   """What iSWAP.elbow_request_predefined_z_positions returned, as its response."""
   response = iswap_pb2.ISwapElbowRequestPredefinedZPositionsResponse()
-  for key_237, item_238 in value.items():
-    response.predefined_z_positions[key_237] = float(item_238)
+  for key_243, item_244 in value.items():
+    response.predefined_z_positions[key_243] = float(item_244)
   return response
 
 
 def decode_iswap_elbow_request_predefined_z_positions_response(response: iswap_pb2.ISwapElbowRequestPredefinedZPositionsResponse) -> Dict[str, float]:
   """What iSWAP.elbow_request_predefined_z_positions returned, from its response."""
   refs: wire.Refs = {}
-  return {key_239: item_240 for key_239, item_240 in response.predefined_z_positions.items()}
+  return {key_245: item_246 for key_245, item_246 in response.predefined_z_positions.items()}
 
 
 def encode_iswap_elbow_request_x_offset_request() -> iswap_pb2.ISwapElbowRequestXOffsetRequest:
@@ -8922,15 +8958,15 @@ async def call_iswap_elbow_request_y_stops(target: iSWAP, request: iswap_pb2.ISw
 def encode_iswap_elbow_request_y_stops_response(value: Dict[str, float]) -> iswap_pb2.ISwapElbowRequestYStopsResponse:
   """What iSWAP.elbow_request_y_stops returned, as its response."""
   response = iswap_pb2.ISwapElbowRequestYStopsResponse()
-  for key_241, item_242 in value.items():
-    response.y_stops[key_241] = float(item_242)
+  for key_247, item_248 in value.items():
+    response.y_stops[key_247] = float(item_248)
   return response
 
 
 def decode_iswap_elbow_request_y_stops_response(response: iswap_pb2.ISwapElbowRequestYStopsResponse) -> Dict[str, float]:
   """What iSWAP.elbow_request_y_stops returned, from its response."""
   refs: wire.Refs = {}
-  return {key_243: item_244 for key_243, item_244 in response.y_stops.items()}
+  return {key_249: item_250 for key_249, item_250 in response.y_stops.items()}
 
 
 def encode_iswap_elbow_request_z_position_request() -> iswap_pb2.ISwapElbowRequestZPositionRequest:
@@ -9063,15 +9099,15 @@ async def call_iswap_gripper_drive_request_widths(target: iSWAP, request: iswap_
 def encode_iswap_gripper_drive_request_widths_response(value: Dict[str, float]) -> iswap_pb2.ISwapGripperDriveRequestWidthsResponse:
   """What iSWAP.gripper_drive_request_widths returned, as its response."""
   response = iswap_pb2.ISwapGripperDriveRequestWidthsResponse()
-  for key_245, item_246 in value.items():
-    response.widths[key_245] = float(item_246)
+  for key_251, item_252 in value.items():
+    response.widths[key_251] = float(item_252)
   return response
 
 
 def decode_iswap_gripper_drive_request_widths_response(response: iswap_pb2.ISwapGripperDriveRequestWidthsResponse) -> Dict[str, float]:
   """What iSWAP.gripper_drive_request_widths returned, from its response."""
   refs: wire.Refs = {}
-  return {key_247: item_248 for key_247, item_248 in response.widths.items()}
+  return {key_253: item_254 for key_253, item_254 in response.widths.items()}
 
 
 def encode_iswap_gripper_move_to_jaw_position_request(*, width: float, speed: Optional[float], acceleration: Optional[float], current_limit: Optional[int]) -> iswap_pb2.ISwapGripperMoveToJawPositionRequest:
@@ -9238,15 +9274,15 @@ async def call_iswap_gripper_request_latest_force_applied(target: iSWAP, request
 def encode_iswap_gripper_request_latest_force_applied_response(value: Dict[str, int]) -> iswap_pb2.ISwapGripperRequestLatestForceAppliedResponse:
   """What iSWAP.gripper_request_latest_force_applied returned, as its response."""
   response = iswap_pb2.ISwapGripperRequestLatestForceAppliedResponse()
-  for key_249, item_250 in value.items():
-    response.latest_force_applied[key_249] = int(item_250)
+  for key_255, item_256 in value.items():
+    response.latest_force_applied[key_255] = int(item_256)
   return response
 
 
 def decode_iswap_gripper_request_latest_force_applied_response(response: iswap_pb2.ISwapGripperRequestLatestForceAppliedResponse) -> Dict[str, int]:
   """What iSWAP.gripper_request_latest_force_applied returned, from its response."""
   refs: wire.Refs = {}
-  return {key_251: item_252 for key_251, item_252 in response.latest_force_applied.items()}
+  return {key_257: item_258 for key_257, item_258 in response.latest_force_applied.items()}
 
 
 def encode_iswap_gripper_request_width_request() -> iswap_pb2.ISwapGripperRequestWidthRequest:
@@ -9525,27 +9561,27 @@ async def call_iswap_request_joint_state(target: iSWAP, request: iswap_pb2.ISwap
 
 
 # pylabrobot.hamilton.star.server.v1.ISwapAxis's values, by their names' suffixes.
-_ENUM_256: Dict[str, types_pb2.ISwapAxis] = {'UNSPECIFIED': types_pb2.ISWAP_AXIS_UNSPECIFIED, 'X': types_pb2.ISWAP_AXIS_X, 'Y': types_pb2.ISWAP_AXIS_Y, 'Z': types_pb2.ISWAP_AXIS_Z, 'ELBOW': types_pb2.ISWAP_AXIS_ELBOW, 'WRIST': types_pb2.ISWAP_AXIS_WRIST, 'GRIPPER': types_pb2.ISWAP_AXIS_GRIPPER}
+_ENUM_262: Dict[str, types_pb2.ISwapAxis] = {'UNSPECIFIED': types_pb2.ISWAP_AXIS_UNSPECIFIED, 'X': types_pb2.ISWAP_AXIS_X, 'Y': types_pb2.ISWAP_AXIS_Y, 'Z': types_pb2.ISWAP_AXIS_Z, 'ELBOW': types_pb2.ISWAP_AXIS_ELBOW, 'WRIST': types_pb2.ISWAP_AXIS_WRIST, 'GRIPPER': types_pb2.ISWAP_AXIS_GRIPPER}
 
 
 # What pylabrobot.hamilton.star.server.v1.ISwapAxis's numbers are, as iSWAPAxis.
-_VALUES_258: Dict[int, iSWAPAxis] = {1: iSWAPAxis.X, 2: iSWAPAxis.Y, 3: iSWAPAxis.Z, 4: iSWAPAxis.ELBOW, 5: iSWAPAxis.WRIST, 6: iSWAPAxis.GRIPPER}
+_VALUES_264: Dict[int, iSWAPAxis] = {1: iSWAPAxis.X, 2: iSWAPAxis.Y, 3: iSWAPAxis.Z, 4: iSWAPAxis.ELBOW, 5: iSWAPAxis.WRIST, 6: iSWAPAxis.GRIPPER}
 
 
 def encode_iswap_request_joint_state_response(value: Dict[iSWAPAxis, float]) -> iswap_pb2.ISwapRequestJointStateResponse:
   """What iSWAP.request_joint_state returned, as its response."""
   response = iswap_pb2.ISwapRequestJointStateResponse()
-  for key_253, item_254 in value.items():
-    entry_255 = response.joint_state.add()
-    entry_255.key = wire.enum_number(_ENUM_256, 'ISwapAxis', key_253)
-    entry_255.value = float(item_254)
+  for key_259, item_260 in value.items():
+    entry_261 = response.joint_state.add()
+    entry_261.key = wire.enum_number(_ENUM_262, 'ISwapAxis', key_259)
+    entry_261.value = float(item_260)
   return response
 
 
 def decode_iswap_request_joint_state_response(response: iswap_pb2.ISwapRequestJointStateResponse) -> Dict[iSWAPAxis, float]:
   """What iSWAP.request_joint_state returned, from its response."""
   refs: wire.Refs = {}
-  return {_VALUES_258[entry_257.key]: entry_257.value for entry_257 in response.joint_state}
+  return {_VALUES_264[entry_263.key]: entry_263.value for entry_263 in response.joint_state}
 
 
 def encode_iswap_request_link_1_length_request() -> iswap_pb2.ISwapRequestLink1LengthRequest:
@@ -9607,7 +9643,7 @@ async def call_iswap_request_pose(target: iSWAP, request: iswap_pb2.ISwapRequest
   return await target.request_pose()
 
 
-def _fill_ISwapPose_259(message: iswap_pb2.ISwapPose, value: iSWAPPose) -> None:
+def _fill_ISwapPose_265(message: iswap_pb2.ISwapPose, value: iSWAPPose) -> None:
   message.elbow_joint_location.SetInParent()
   wire.fill_xyz(message.elbow_joint_location, value.elbow_joint_location)
   message.wrist_joint_location.SetInParent()
@@ -9616,19 +9652,19 @@ def _fill_ISwapPose_259(message: iswap_pb2.ISwapPose, value: iSWAPPose) -> None:
   wire.fill_xyz(message.gripper_center_location, value.gripper_center_location)
   message.gripper_deck_orientation.SetInParent()
   wire.fill_xyz(message.gripper_deck_orientation, value.gripper_deck_orientation)
-  for key_260, item_261 in value.joints.items():
-    entry_262 = message.joints.add()
-    entry_262.key = wire.enum_number(_ENUM_256, 'ISwapAxis', key_260)
-    entry_262.value = float(item_261)
+  for key_266, item_267 in value.joints.items():
+    entry_268 = message.joints.add()
+    entry_268.key = wire.enum_number(_ENUM_262, 'ISwapAxis', key_266)
+    entry_268.value = float(item_267)
 
 
-def _read_ISwapPose_263(message: iswap_pb2.ISwapPose, refs: wire.Refs) -> iSWAPPose:
+def _read_ISwapPose_269(message: iswap_pb2.ISwapPose, refs: wire.Refs) -> iSWAPPose:
   return iSWAPPose(
     elbow_joint_location=(wire.read_vec3(message.elbow_joint_location, refs) if message.HasField('elbow_joint_location') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapPose.elbow_joint_location')),
     wrist_joint_location=(wire.read_vec3(message.wrist_joint_location, refs) if message.HasField('wrist_joint_location') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapPose.wrist_joint_location')),
     gripper_center_location=(wire.read_vec3(message.gripper_center_location, refs) if message.HasField('gripper_center_location') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapPose.gripper_center_location')),
     gripper_deck_orientation=(wire.read_rotation(message.gripper_deck_orientation, refs) if message.HasField('gripper_deck_orientation') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapPose.gripper_deck_orientation')),
-    joints={_VALUES_258[entry_264.key]: entry_264.value for entry_264 in message.joints},
+    joints={_VALUES_264[entry_270.key]: entry_270.value for entry_270 in message.joints},
   )
 
 
@@ -9636,14 +9672,14 @@ def encode_iswap_request_pose_response(value: iSWAPPose) -> iswap_pb2.ISwapReque
   """What iSWAP.request_pose returned, as its response."""
   response = iswap_pb2.ISwapRequestPoseResponse()
   response.pose.SetInParent()
-  _fill_ISwapPose_259(response.pose, value)
+  _fill_ISwapPose_265(response.pose, value)
   return response
 
 
 def decode_iswap_request_pose_response(response: iswap_pb2.ISwapRequestPoseResponse) -> iSWAPPose:
   """What iSWAP.request_pose returned, from its response."""
   refs: wire.Refs = {}
-  return (_read_ISwapPose_263(response.pose, refs) if response.HasField('pose') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapRequestPoseResponse.pose'))
+  return (_read_ISwapPose_269(response.pose, refs) if response.HasField('pose') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapRequestPoseResponse.pose'))
 
 
 def encode_iswap_request_tool_center_point_xy_length_request() -> iswap_pb2.ISwapRequestToolCenterPointXyLengthRequest:
@@ -9721,34 +9757,34 @@ def encode_iswap_rotate_to_angles_request(*, elbow_relative_angle: Optional[Unio
 async def call_iswap_rotate_to_angles(target: iSWAP, request: iswap_pb2.ISwapRotateToAnglesRequest, refs: wire.Refs) -> Any:
   """The call to iSWAP.rotate_to_angles a request asks for."""
   a_elbow_relative_angle: Optional[Union[str, float]]
-  which_265 = request.WhichOneof('elbow_relative_angle')
-  if which_265 == 'elbow_relative_angle_name':
+  which_271 = request.WhichOneof('elbow_relative_angle')
+  if which_271 == 'elbow_relative_angle_name':
     a_elbow_relative_angle = request.elbow_relative_angle_name
-  elif which_265 == 'elbow_relative_angle_value':
+  elif which_271 == 'elbow_relative_angle_value':
     a_elbow_relative_angle = request.elbow_relative_angle_value
   else:
     a_elbow_relative_angle = None
   a_elbow_absolute_angle: Optional[Union[str, float]]
-  which_266 = request.WhichOneof('elbow_absolute_angle')
-  if which_266 == 'elbow_absolute_angle_name':
+  which_272 = request.WhichOneof('elbow_absolute_angle')
+  if which_272 == 'elbow_absolute_angle_name':
     a_elbow_absolute_angle = request.elbow_absolute_angle_name
-  elif which_266 == 'elbow_absolute_angle_value':
+  elif which_272 == 'elbow_absolute_angle_value':
     a_elbow_absolute_angle = request.elbow_absolute_angle_value
   else:
     a_elbow_absolute_angle = None
   a_gripper_relative_angle: Optional[Union[str, float]]
-  which_267 = request.WhichOneof('gripper_relative_angle')
-  if which_267 == 'gripper_relative_angle_name':
+  which_273 = request.WhichOneof('gripper_relative_angle')
+  if which_273 == 'gripper_relative_angle_name':
     a_gripper_relative_angle = request.gripper_relative_angle_name
-  elif which_267 == 'gripper_relative_angle_value':
+  elif which_273 == 'gripper_relative_angle_value':
     a_gripper_relative_angle = request.gripper_relative_angle_value
   else:
     a_gripper_relative_angle = None
   a_gripper_absolute_angle: Optional[Union[str, float]]
-  which_268 = request.WhichOneof('gripper_absolute_angle')
-  if which_268 == 'gripper_absolute_angle_name':
+  which_274 = request.WhichOneof('gripper_absolute_angle')
+  if which_274 == 'gripper_absolute_angle_name':
     a_gripper_absolute_angle = request.gripper_absolute_angle_name
-  elif which_268 == 'gripper_absolute_angle_value':
+  elif which_274 == 'gripper_absolute_angle_value':
     a_gripper_absolute_angle = request.gripper_absolute_angle_value
   else:
     a_gripper_absolute_angle = None
@@ -9907,7 +9943,7 @@ async def call_iswap_wrist_drive_request_positions(target: iSWAP, request: iswap
   return await target.wrist_drive_request_positions()
 
 
-def _fill_ISwapWristPositions_269(message: iswap_pb2.ISwapWristPositions, value: iSWAPWristPositions) -> None:
+def _fill_ISwapWristPositions_275(message: iswap_pb2.ISwapWristPositions, value: iSWAPWristPositions) -> None:
   message.home = int(value.home)
   message.right = int(value.right)
   message.straight = int(value.straight)
@@ -9919,7 +9955,7 @@ def _fill_ISwapWristPositions_269(message: iswap_pb2.ISwapWristPositions, value:
   message.extra_3 = int(value.extra_3)
 
 
-def _read_ISwapWristPositions_270(message: iswap_pb2.ISwapWristPositions, refs: wire.Refs) -> iSWAPWristPositions:
+def _read_ISwapWristPositions_276(message: iswap_pb2.ISwapWristPositions, refs: wire.Refs) -> iSWAPWristPositions:
   return iSWAPWristPositions(
     home=message.home,
     right=message.right,
@@ -9937,14 +9973,14 @@ def encode_iswap_wrist_drive_request_positions_response(value: iSWAPWristPositio
   """What iSWAP.wrist_drive_request_positions returned, as its response."""
   response = iswap_pb2.ISwapWristDriveRequestPositionsResponse()
   response.positions.SetInParent()
-  _fill_ISwapWristPositions_269(response.positions, value)
+  _fill_ISwapWristPositions_275(response.positions, value)
   return response
 
 
 def decode_iswap_wrist_drive_request_positions_response(response: iswap_pb2.ISwapWristDriveRequestPositionsResponse) -> iSWAPWristPositions:
   """What iSWAP.wrist_drive_request_positions returned, from its response."""
   refs: wire.Refs = {}
-  return (_read_ISwapWristPositions_270(response.positions, refs) if response.HasField('positions') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapWristDriveRequestPositionsResponse.positions'))
+  return (_read_ISwapWristPositions_276(response.positions, refs) if response.HasField('positions') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapWristDriveRequestPositionsResponse.positions'))
 
 
 def encode_iswap_wrist_drive_rotate_to_angle_request(*, angle: Union[str, float], speed: Optional[float], acceleration: Optional[float], current_limit: Optional[int]) -> iswap_pb2.ISwapWristDriveRotateToAngleRequest:
@@ -9968,10 +10004,10 @@ def encode_iswap_wrist_drive_rotate_to_angle_request(*, angle: Union[str, float]
 async def call_iswap_wrist_drive_rotate_to_angle(target: iSWAP, request: iswap_pb2.ISwapWristDriveRotateToAngleRequest, refs: wire.Refs) -> Any:
   """The call to iSWAP.wrist_drive_rotate_to_angle a request asks for."""
   a_angle: Union[str, float]
-  which_271 = request.WhichOneof('angle')
-  if which_271 == 'angle_name':
+  which_277 = request.WhichOneof('angle')
+  if which_277 == 'angle_name':
     a_angle = request.angle_name
-  elif which_271 == 'angle_value':
+  elif which_277 == 'angle_value':
     a_angle = request.angle_value
   else:
     raise TypeError("wrist_drive_rotate_to_angle() missing required argument: 'angle'")
@@ -10340,10 +10376,10 @@ def encode_core_grippers_place_resource_request(*, to: Union[handles.Resource, C
 async def call_core_grippers_place_resource(target: CoreGrippers, request: core_grippers_pb2.CoreGrippersPlaceResourceRequest, refs: wire.Refs) -> None:
   """The call to CoreGrippers.place_resource a request asks for."""
   a_to: Union[handles.Resource, Coordinate]
-  which_272 = request.WhichOneof('to')
-  if which_272 == 'to_resource':
+  which_278 = request.WhichOneof('to')
+  if which_278 == 'to_resource':
     a_to = wire.handle(refs, request.to_resource, Resource)
-  elif which_272 == 'to_location':
+  elif which_278 == 'to_location':
     a_to = wire.read_vec3(request.to_location, refs)
   else:
     raise TypeError("place_resource() missing required argument: 'to'")
@@ -10748,8 +10784,8 @@ def decode_autoload_initialize_response(response: autoload_pb2.AutoloadInitializ
 def encode_autoload_light_tracks_request(*, tracks: List[int], blinking: Optional[List[bool]]) -> autoload_pb2.AutoloadLightTracksRequest:
   """A call to Autoload.light_tracks, as its request."""
   request = autoload_pb2.AutoloadLightTracksRequest()
-  for item_273 in tracks:
-    request.tracks.append(int(item_273))
+  for item_279 in tracks:
+    request.tracks.append(int(item_279))
   if blinking is not None:
     request.blinking.SetInParent()
     _fill_BoolList_25(request.blinking, blinking)
@@ -10759,7 +10795,7 @@ def encode_autoload_light_tracks_request(*, tracks: List[int], blinking: Optiona
 async def call_autoload_light_tracks(target: Autoload, request: autoload_pb2.AutoloadLightTracksRequest, refs: wire.Refs) -> None:
   """The call to Autoload.light_tracks a request asks for."""
   a_tracks: List[int]
-  a_tracks = [item_274 for item_274 in request.tracks]
+  a_tracks = [item_280 for item_280 in request.tracks]
   a_blinking: Optional[List[bool]]
   if request.HasField('blinking'):
     a_blinking = _read_BoolList_29(request.blinking, refs)
@@ -10781,7 +10817,7 @@ def decode_autoload_light_tracks_response(response: autoload_pb2.AutoloadLightTr
 
 
 # pylabrobot.hamilton.star.server.v1.BarcodeReadingDirection's values, by their names' suffixes.
-_ENUM_275: Dict[str, types_pb2.BarcodeReadingDirection] = {'UNSPECIFIED': types_pb2.BARCODE_READING_DIRECTION_UNSPECIFIED, 'VERTICAL': types_pb2.BARCODE_READING_DIRECTION_VERTICAL, 'HORIZONTAL': types_pb2.BARCODE_READING_DIRECTION_HORIZONTAL}
+_ENUM_281: Dict[str, types_pb2.BarcodeReadingDirection] = {'UNSPECIFIED': types_pb2.BARCODE_READING_DIRECTION_UNSPECIFIED, 'VERTICAL': types_pb2.BARCODE_READING_DIRECTION_VERTICAL, 'HORIZONTAL': types_pb2.BARCODE_READING_DIRECTION_HORIZONTAL}
 
 
 def encode_autoload_load_carrier_request(*, carrier: handles.Resource, carrier_barcode_reading: bool, barcode_reading: bool, barcode_reading_direction: BarcodeReadingDirection, containers_per_carrier: int, reading_position_of_first_barcode: float, distance_between_containers: float, width_of_reading_window: float, reading_speed: float, park_after: bool) -> autoload_pb2.AutoloadLoadCarrierRequest:
@@ -10791,7 +10827,7 @@ def encode_autoload_load_carrier_request(*, carrier: handles.Resource, carrier_b
   wire.fill_ref(request.carrier, carrier)
   request.carrier_barcode_reading = bool(carrier_barcode_reading)
   request.barcode_reading = bool(barcode_reading)
-  request.barcode_reading_direction = wire.enum_number(_ENUM_275, 'BarcodeReadingDirection', barcode_reading_direction)
+  request.barcode_reading_direction = wire.enum_number(_ENUM_281, 'BarcodeReadingDirection', barcode_reading_direction)
   request.containers_per_carrier = int(containers_per_carrier)
   request.reading_position_of_first_barcode = float(reading_position_of_first_barcode)
   request.distance_between_containers = float(distance_between_containers)
@@ -10802,7 +10838,7 @@ def encode_autoload_load_carrier_request(*, carrier: handles.Resource, carrier_b
 
 
 # What pylabrobot.hamilton.star.server.v1.BarcodeReadingDirection's numbers are, as Literal['vertical', 'horizontal'].
-_VALUES_276: Dict[int, Literal['vertical', 'horizontal']] = {1: 'vertical', 2: 'horizontal'}
+_VALUES_282: Dict[int, Literal['vertical', 'horizontal']] = {1: 'vertical', 2: 'horizontal'}
 
 
 async def call_autoload_load_carrier(target: Autoload, request: autoload_pb2.AutoloadLoadCarrierRequest, refs: wire.Refs) -> LoadedCarrier:
@@ -10824,7 +10860,7 @@ async def call_autoload_load_carrier(target: Autoload, request: autoload_pb2.Aut
     a_barcode_reading = False
   a_barcode_reading_direction: BarcodeReadingDirection
   if request.HasField('barcode_reading_direction'):
-    a_barcode_reading_direction = _VALUES_276[request.barcode_reading_direction]
+    a_barcode_reading_direction = _VALUES_282[request.barcode_reading_direction]
   else:
     a_barcode_reading_direction = 'horizontal'
   a_containers_per_carrier: int
@@ -10860,47 +10896,47 @@ async def call_autoload_load_carrier(target: Autoload, request: autoload_pb2.Aut
   return await target.load_carrier(carrier=a_carrier, carrier_barcode_reading=a_carrier_barcode_reading, barcode_reading=a_barcode_reading, barcode_reading_direction=a_barcode_reading_direction, containers_per_carrier=a_containers_per_carrier, reading_position_of_first_barcode=a_reading_position_of_first_barcode, distance_between_containers=a_distance_between_containers, width_of_reading_window=a_width_of_reading_window, reading_speed=a_reading_speed, park_after=a_park_after)
 
 
-def _fill_OptionalString_280(message: types_pb2.OptionalString, value: Union[str, None]) -> None:
+def _fill_OptionalString_286(message: types_pb2.OptionalString, value: Union[str, None]) -> None:
   if value is not None:
     message.value = wire.text(value)
 
 
-def _fill_AutoloadLoadCarrierResponse_277(message: autoload_pb2.AutoloadLoadCarrierResponse, value: LoadedCarrier) -> None:
+def _fill_AutoloadLoadCarrierResponse_283(message: autoload_pb2.AutoloadLoadCarrierResponse, value: LoadedCarrier) -> None:
   if value['carrier_barcode'] is not None:
     message.carrier_barcode = wire.text(value['carrier_barcode'])
-  for key_278, item_279 in value['container_barcodes'].items():
-    _fill_OptionalString_280(message.container_barcodes[key_278], item_279)
+  for key_284, item_285 in value['container_barcodes'].items():
+    _fill_OptionalString_286(message.container_barcodes[key_284], item_285)
 
 
-def _read_OptionalString_284(message: types_pb2.OptionalString, refs: wire.Refs) -> Union[str, None]:
+def _read_OptionalString_290(message: types_pb2.OptionalString, refs: wire.Refs) -> Union[str, None]:
   return (message.value if message.HasField('value') else None)
 
 
-def _read_AutoloadLoadCarrierResponse_281(message: autoload_pb2.AutoloadLoadCarrierResponse, refs: wire.Refs) -> LoadedCarrier:
+def _read_AutoloadLoadCarrierResponse_287(message: autoload_pb2.AutoloadLoadCarrierResponse, refs: wire.Refs) -> LoadedCarrier:
   return {
     'carrier_barcode': (message.carrier_barcode if message.HasField('carrier_barcode') else None),
-    'container_barcodes': {key_282: _read_OptionalString_284(item_283, refs) for key_282, item_283 in message.container_barcodes.items()},
+    'container_barcodes': {key_288: _read_OptionalString_290(item_289, refs) for key_288, item_289 in message.container_barcodes.items()},
   }
 
 
 def encode_autoload_load_carrier_response(value: LoadedCarrier) -> autoload_pb2.AutoloadLoadCarrierResponse:
   """What Autoload.load_carrier returned, as its response."""
   response = autoload_pb2.AutoloadLoadCarrierResponse()
-  _fill_AutoloadLoadCarrierResponse_277(response, value)
+  _fill_AutoloadLoadCarrierResponse_283(response, value)
   return response
 
 
 def decode_autoload_load_carrier_response(response: autoload_pb2.AutoloadLoadCarrierResponse) -> LoadedCarrier:
   """What Autoload.load_carrier returned, from its response."""
   refs: wire.Refs = {}
-  return _read_AutoloadLoadCarrierResponse_281(response, refs)
+  return _read_AutoloadLoadCarrierResponse_287(response, refs)
 
 
 def encode_autoload_load_carrier_from_autoload_belt_request(*, barcode_reading: bool, barcode_reading_direction: BarcodeReadingDirection, reading_position_of_first_barcode: float, containers_per_carrier: int, distance_between_containers: float, width_of_reading_window: float, reading_speed: float, park_after: bool) -> autoload_pb2.AutoloadLoadCarrierFromAutoloadBeltRequest:
   """A call to Autoload.load_carrier_from_autoload_belt, as its request."""
   request = autoload_pb2.AutoloadLoadCarrierFromAutoloadBeltRequest()
   request.barcode_reading = bool(barcode_reading)
-  request.barcode_reading_direction = wire.enum_number(_ENUM_275, 'BarcodeReadingDirection', barcode_reading_direction)
+  request.barcode_reading_direction = wire.enum_number(_ENUM_281, 'BarcodeReadingDirection', barcode_reading_direction)
   request.reading_position_of_first_barcode = float(reading_position_of_first_barcode)
   request.containers_per_carrier = int(containers_per_carrier)
   request.distance_between_containers = float(distance_between_containers)
@@ -10919,7 +10955,7 @@ async def call_autoload_load_carrier_from_autoload_belt(target: Autoload, reques
     a_barcode_reading = False
   a_barcode_reading_direction: BarcodeReadingDirection
   if request.HasField('barcode_reading_direction'):
-    a_barcode_reading_direction = _VALUES_276[request.barcode_reading_direction]
+    a_barcode_reading_direction = _VALUES_282[request.barcode_reading_direction]
   else:
     a_barcode_reading_direction = 'horizontal'
   a_reading_position_of_first_barcode: float
@@ -10958,15 +10994,15 @@ async def call_autoload_load_carrier_from_autoload_belt(target: Autoload, reques
 def encode_autoload_load_carrier_from_autoload_belt_response(value: Dict[int, Union[str, None]]) -> autoload_pb2.AutoloadLoadCarrierFromAutoloadBeltResponse:
   """What Autoload.load_carrier_from_autoload_belt returned, as its response."""
   response = autoload_pb2.AutoloadLoadCarrierFromAutoloadBeltResponse()
-  for key_285, item_286 in value.items():
-    _fill_OptionalString_280(response.container_barcodes[key_285], item_286)
+  for key_291, item_292 in value.items():
+    _fill_OptionalString_286(response.container_barcodes[key_291], item_292)
   return response
 
 
 def decode_autoload_load_carrier_from_autoload_belt_response(response: autoload_pb2.AutoloadLoadCarrierFromAutoloadBeltResponse) -> Dict[int, Union[str, None]]:
   """What Autoload.load_carrier_from_autoload_belt returned, from its response."""
   refs: wire.Refs = {}
-  return {key_287: _read_OptionalString_284(item_288, refs) for key_287, item_288 in response.container_barcodes.items()}
+  return {key_293: _read_OptionalString_290(item_294, refs) for key_293, item_294 in response.container_barcodes.items()}
 
 
 def encode_autoload_load_carrier_from_tray_and_scan_carrier_barcode_request(*, track: int, barcode_position: float, barcode_reading_window_width: float, reading_speed: float) -> autoload_pb2.AutoloadLoadCarrierFromTrayAndScanCarrierBarcodeRequest:
@@ -11491,25 +11527,25 @@ def decode_autoload_reset_barcode_scanner_response(response: autoload_pb2.Autolo
 
 
 # pylabrobot.hamilton.star.server.v1.ScannerRotation's values, by their names' suffixes.
-_ENUM_289: Dict[str, types_pb2.ScannerRotation] = {'UNSPECIFIED': types_pb2.SCANNER_ROTATION_UNSPECIFIED, 'VERTICAL': types_pb2.SCANNER_ROTATION_VERTICAL, 'HORIZONTAL': types_pb2.SCANNER_ROTATION_HORIZONTAL, 'UNDEFINED': types_pb2.SCANNER_ROTATION_UNDEFINED}
+_ENUM_295: Dict[str, types_pb2.ScannerRotation] = {'UNSPECIFIED': types_pb2.SCANNER_ROTATION_UNSPECIFIED, 'VERTICAL': types_pb2.SCANNER_ROTATION_VERTICAL, 'HORIZONTAL': types_pb2.SCANNER_ROTATION_HORIZONTAL, 'UNDEFINED': types_pb2.SCANNER_ROTATION_UNDEFINED}
 
 
 def encode_autoload_scanner_move_to_position_request(*, position: ScannerRotation, stop_torque: bool) -> autoload_pb2.AutoloadScannerMoveToPositionRequest:
   """A call to Autoload.scanner_move_to_position, as its request."""
   request = autoload_pb2.AutoloadScannerMoveToPositionRequest()
-  request.position = wire.enum_number(_ENUM_289, 'ScannerRotation', position)
+  request.position = wire.enum_number(_ENUM_295, 'ScannerRotation', position)
   request.stop_torque = bool(stop_torque)
   return request
 
 
 # What pylabrobot.hamilton.star.server.v1.ScannerRotation's numbers are, as Literal['vertical', 'horizontal', 'undefined'].
-_VALUES_290: Dict[int, Literal['vertical', 'horizontal', 'undefined']] = {1: 'vertical', 2: 'horizontal', 3: 'undefined'}
+_VALUES_296: Dict[int, Literal['vertical', 'horizontal', 'undefined']] = {1: 'vertical', 2: 'horizontal', 3: 'undefined'}
 
 
 async def call_autoload_scanner_move_to_position(target: Autoload, request: autoload_pb2.AutoloadScannerMoveToPositionRequest, refs: wire.Refs) -> Any:
   """The call to Autoload.scanner_move_to_position a request asks for."""
   a_position: ScannerRotation
-  a_position = _VALUES_290[request.position]
+  a_position = _VALUES_296[request.position]
   a_stop_torque: bool
   if request.HasField('stop_torque'):
     a_stop_torque = request.stop_torque
@@ -11547,14 +11583,14 @@ async def call_autoload_scanner_request_rotation(target: Autoload, request: auto
 def encode_autoload_scanner_request_rotation_response(value: Literal['vertical', 'horizontal', 'undefined']) -> autoload_pb2.AutoloadScannerRequestRotationResponse:
   """What Autoload.scanner_request_rotation returned, as its response."""
   response = autoload_pb2.AutoloadScannerRequestRotationResponse()
-  response.rotation = wire.enum_number(_ENUM_289, 'ScannerRotation', value)
+  response.rotation = wire.enum_number(_ENUM_295, 'ScannerRotation', value)
   return response
 
 
 def decode_autoload_scanner_request_rotation_response(response: autoload_pb2.AutoloadScannerRequestRotationResponse) -> Literal['vertical', 'horizontal', 'undefined']:
   """What Autoload.scanner_request_rotation returned, from its response."""
   refs: wire.Refs = {}
-  return _VALUES_290[response.rotation]
+  return _VALUES_296[response.rotation]
 
 
 def encode_autoload_sense_carrier_presence_on_deck_request() -> autoload_pb2.AutoloadSenseCarrierPresenceOnDeckRequest:
@@ -11571,15 +11607,15 @@ async def call_autoload_sense_carrier_presence_on_deck(target: Autoload, request
 def encode_autoload_sense_carrier_presence_on_deck_response(value: List[int]) -> autoload_pb2.AutoloadSenseCarrierPresenceOnDeckResponse:
   """What Autoload.sense_carrier_presence_on_deck returned, as its response."""
   response = autoload_pb2.AutoloadSenseCarrierPresenceOnDeckResponse()
-  for item_291 in value:
-    response.tracks.append(int(item_291))
+  for item_297 in value:
+    response.tracks.append(int(item_297))
   return response
 
 
 def decode_autoload_sense_carrier_presence_on_deck_response(response: autoload_pb2.AutoloadSenseCarrierPresenceOnDeckResponse) -> List[int]:
   """What Autoload.sense_carrier_presence_on_deck returned, from its response."""
   refs: wire.Refs = {}
-  return [item_292 for item_292 in response.tracks]
+  return [item_298 for item_298 in response.tracks]
 
 
 def encode_autoload_sense_carrier_presence_on_loading_tray_request() -> autoload_pb2.AutoloadSenseCarrierPresenceOnLoadingTrayRequest:
@@ -11596,15 +11632,15 @@ async def call_autoload_sense_carrier_presence_on_loading_tray(target: Autoload,
 def encode_autoload_sense_carrier_presence_on_loading_tray_response(value: List[int]) -> autoload_pb2.AutoloadSenseCarrierPresenceOnLoadingTrayResponse:
   """What Autoload.sense_carrier_presence_on_loading_tray returned, as its response."""
   response = autoload_pb2.AutoloadSenseCarrierPresenceOnLoadingTrayResponse()
-  for item_293 in value:
-    response.tracks.append(int(item_293))
+  for item_299 in value:
+    response.tracks.append(int(item_299))
   return response
 
 
 def decode_autoload_sense_carrier_presence_on_loading_tray_response(response: autoload_pb2.AutoloadSenseCarrierPresenceOnLoadingTrayResponse) -> List[int]:
   """What Autoload.sense_carrier_presence_on_loading_tray returned, from its response."""
   refs: wire.Refs = {}
-  return [item_294 for item_294 in response.tracks]
+  return [item_300 for item_300 in response.tracks]
 
 
 def encode_autoload_sense_carrier_presence_on_single_loading_tray_track_request(*, track: int, park_after: bool) -> autoload_pb2.AutoloadSenseCarrierPresenceOnSingleLoadingTrayTrackRequest:
@@ -11641,25 +11677,25 @@ def decode_autoload_sense_carrier_presence_on_single_loading_tray_track_response
 
 
 # pylabrobot.hamilton.star.server.v1.BarcodeSymbology's values, by their names' suffixes.
-_ENUM_297: Dict[str, types_pb2.BarcodeSymbology] = {'UNSPECIFIED': types_pb2.BARCODE_SYMBOLOGY_UNSPECIFIED, 'ISBT_STANDARD': types_pb2.BARCODE_SYMBOLOGY_ISBT_STANDARD, 'CODE_128_SUBSET_B_AND_C': types_pb2.BARCODE_SYMBOLOGY_CODE_128_SUBSET_B_AND_C, 'CODE_39': types_pb2.BARCODE_SYMBOLOGY_CODE_39, 'CODEBAR': types_pb2.BARCODE_SYMBOLOGY_CODEBAR, 'CODE_2OF5_INTERLEAVED': types_pb2.BARCODE_SYMBOLOGY_CODE_2OF5_INTERLEAVED, 'UPC_A_E': types_pb2.BARCODE_SYMBOLOGY_UPC_A_E, 'YESN_EAN_8': types_pb2.BARCODE_SYMBOLOGY_YESN_EAN_8, 'CODE_93': types_pb2.BARCODE_SYMBOLOGY_CODE_93, 'ANY_1D': types_pb2.BARCODE_SYMBOLOGY_ANY_1D}
+_ENUM_303: Dict[str, types_pb2.BarcodeSymbology] = {'UNSPECIFIED': types_pb2.BARCODE_SYMBOLOGY_UNSPECIFIED, 'ISBT_STANDARD': types_pb2.BARCODE_SYMBOLOGY_ISBT_STANDARD, 'CODE_128_SUBSET_B_AND_C': types_pb2.BARCODE_SYMBOLOGY_CODE_128_SUBSET_B_AND_C, 'CODE_39': types_pb2.BARCODE_SYMBOLOGY_CODE_39, 'CODEBAR': types_pb2.BARCODE_SYMBOLOGY_CODEBAR, 'CODE_2OF5_INTERLEAVED': types_pb2.BARCODE_SYMBOLOGY_CODE_2OF5_INTERLEAVED, 'UPC_A_E': types_pb2.BARCODE_SYMBOLOGY_UPC_A_E, 'YESN_EAN_8': types_pb2.BARCODE_SYMBOLOGY_YESN_EAN_8, 'CODE_93': types_pb2.BARCODE_SYMBOLOGY_CODE_93, 'ANY_1D': types_pb2.BARCODE_SYMBOLOGY_ANY_1D}
 
 
-def _fill_BarcodeSymbologyList_295(message: types_pb2.BarcodeSymbologyList, value: List[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D']]) -> None:
-  for item_296 in value:
-    message.values.append(wire.enum_number(_ENUM_297, 'BarcodeSymbology', item_296))
+def _fill_BarcodeSymbologyList_301(message: types_pb2.BarcodeSymbologyList, value: List[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D']]) -> None:
+  for item_302 in value:
+    message.values.append(wire.enum_number(_ENUM_303, 'BarcodeSymbology', item_302))
 
 
 # pylabrobot.hamilton.star.server.v1.Barcode2DSymbology's values, by their names' suffixes.
-_ENUM_300: Dict[str, types_pb2.Barcode2DSymbology] = {'UNSPECIFIED': types_pb2.BARCODE_2D_SYMBOLOGY_UNSPECIFIED, 'DATA_MATRIX': types_pb2.BARCODE_2D_SYMBOLOGY_DATA_MATRIX, 'QR_CODE': types_pb2.BARCODE_2D_SYMBOLOGY_QR_CODE, 'MAXI_CODE': types_pb2.BARCODE_2D_SYMBOLOGY_MAXI_CODE, 'AZTEC': types_pb2.BARCODE_2D_SYMBOLOGY_AZTEC, 'PDF_417': types_pb2.BARCODE_2D_SYMBOLOGY_PDF_417, 'MICRO_PDF_417': types_pb2.BARCODE_2D_SYMBOLOGY_MICRO_PDF_417, 'GS1_DATABAR': types_pb2.BARCODE_2D_SYMBOLOGY_GS1_DATABAR, 'EAN_UCC_COMP': types_pb2.BARCODE_2D_SYMBOLOGY_EAN_UCC_COMP, 'ANY_2D': types_pb2.BARCODE_2D_SYMBOLOGY_ANY_2D}
+_ENUM_306: Dict[str, types_pb2.Barcode2DSymbology] = {'UNSPECIFIED': types_pb2.BARCODE_2D_SYMBOLOGY_UNSPECIFIED, 'DATA_MATRIX': types_pb2.BARCODE_2D_SYMBOLOGY_DATA_MATRIX, 'QR_CODE': types_pb2.BARCODE_2D_SYMBOLOGY_QR_CODE, 'MAXI_CODE': types_pb2.BARCODE_2D_SYMBOLOGY_MAXI_CODE, 'AZTEC': types_pb2.BARCODE_2D_SYMBOLOGY_AZTEC, 'PDF_417': types_pb2.BARCODE_2D_SYMBOLOGY_PDF_417, 'MICRO_PDF_417': types_pb2.BARCODE_2D_SYMBOLOGY_MICRO_PDF_417, 'GS1_DATABAR': types_pb2.BARCODE_2D_SYMBOLOGY_GS1_DATABAR, 'EAN_UCC_COMP': types_pb2.BARCODE_2D_SYMBOLOGY_EAN_UCC_COMP, 'ANY_2D': types_pb2.BARCODE_2D_SYMBOLOGY_ANY_2D}
 
 
-def _fill_Barcode2DSymbologyList_298(message: types_pb2.Barcode2DSymbologyList, value: List[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D']]) -> None:
-  for item_299 in value:
-    message.values.append(wire.enum_number(_ENUM_300, 'Barcode2DSymbology', item_299))
+def _fill_Barcode2DSymbologyList_304(message: types_pb2.Barcode2DSymbologyList, value: List[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D']]) -> None:
+  for item_305 in value:
+    message.values.append(wire.enum_number(_ENUM_306, 'Barcode2DSymbology', item_305))
 
 
 # pylabrobot.hamilton.star.server.v1.ScanDirection's values, by their names' suffixes.
-_ENUM_301: Dict[str, types_pb2.ScanDirection] = {'UNSPECIFIED': types_pb2.SCAN_DIRECTION_UNSPECIFIED, 'VERTICAL': types_pb2.SCAN_DIRECTION_VERTICAL, 'HORIZONTAL': types_pb2.SCAN_DIRECTION_HORIZONTAL, 'OMNIDIRECTIONAL': types_pb2.SCAN_DIRECTION_OMNIDIRECTIONAL, 'VERTICAL_AND_HORIZONTAL': types_pb2.SCAN_DIRECTION_VERTICAL_AND_HORIZONTAL}
+_ENUM_307: Dict[str, types_pb2.ScanDirection] = {'UNSPECIFIED': types_pb2.SCAN_DIRECTION_UNSPECIFIED, 'VERTICAL': types_pb2.SCAN_DIRECTION_VERTICAL, 'HORIZONTAL': types_pb2.SCAN_DIRECTION_HORIZONTAL, 'OMNIDIRECTIONAL': types_pb2.SCAN_DIRECTION_OMNIDIRECTIONAL, 'VERTICAL_AND_HORIZONTAL': types_pb2.SCAN_DIRECTION_VERTICAL_AND_HORIZONTAL}
 
 
 def encode_autoload_set_barcode_scanner_enabled_request(*, enabled: bool, symbologies: Optional[List[Barcode1DSymbology]], symbologies_2d: Optional[List[Barcode2DSymbology]], scan_direction: ScanDirection) -> autoload_pb2.AutoloadSetBarcodeScannerEnabledRequest:
@@ -11668,32 +11704,32 @@ def encode_autoload_set_barcode_scanner_enabled_request(*, enabled: bool, symbol
   request.enabled = bool(enabled)
   if symbologies is not None:
     request.symbologies.SetInParent()
-    _fill_BarcodeSymbologyList_295(request.symbologies, symbologies)
+    _fill_BarcodeSymbologyList_301(request.symbologies, symbologies)
   if symbologies_2d is not None:
     request.symbologies_2d.SetInParent()
-    _fill_Barcode2DSymbologyList_298(request.symbologies_2d, symbologies_2d)
-  request.scan_direction = wire.enum_number(_ENUM_301, 'ScanDirection', scan_direction)
+    _fill_Barcode2DSymbologyList_304(request.symbologies_2d, symbologies_2d)
+  request.scan_direction = wire.enum_number(_ENUM_307, 'ScanDirection', scan_direction)
   return request
 
 
 # What pylabrobot.hamilton.star.server.v1.BarcodeSymbology's numbers are, as Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'].
-_VALUES_304: Dict[int, Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D']] = {1: 'ISBT Standard', 2: 'Code 128 (Subset B and C)', 3: 'Code 39', 4: 'Codebar', 5: 'Code 2of5 Interleaved', 6: 'UPC A/E', 7: 'YESN/EAN 8', 8: 'Code 93', 9: 'ANY 1D'}
+_VALUES_310: Dict[int, Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D']] = {1: 'ISBT Standard', 2: 'Code 128 (Subset B and C)', 3: 'Code 39', 4: 'Codebar', 5: 'Code 2of5 Interleaved', 6: 'UPC A/E', 7: 'YESN/EAN 8', 8: 'Code 93', 9: 'ANY 1D'}
 
 
-def _read_BarcodeSymbologyList_302(message: types_pb2.BarcodeSymbologyList, refs: wire.Refs) -> List[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D']]:
-  return [_VALUES_304[item_303] for item_303 in message.values]
+def _read_BarcodeSymbologyList_308(message: types_pb2.BarcodeSymbologyList, refs: wire.Refs) -> List[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D']]:
+  return [_VALUES_310[item_309] for item_309 in message.values]
 
 
 # What pylabrobot.hamilton.star.server.v1.Barcode2DSymbology's numbers are, as Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'].
-_VALUES_307: Dict[int, Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D']] = {1: 'Data Matrix', 2: 'QR Code', 3: 'Maxi Code', 4: 'Aztec', 5: 'PDF 417', 6: 'Micro PDF 417', 7: 'GS1 DataBar', 8: 'EAN/UCC Comp', 9: 'ANY 2D'}
+_VALUES_313: Dict[int, Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D']] = {1: 'Data Matrix', 2: 'QR Code', 3: 'Maxi Code', 4: 'Aztec', 5: 'PDF 417', 6: 'Micro PDF 417', 7: 'GS1 DataBar', 8: 'EAN/UCC Comp', 9: 'ANY 2D'}
 
 
-def _read_Barcode2DSymbologyList_305(message: types_pb2.Barcode2DSymbologyList, refs: wire.Refs) -> List[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D']]:
-  return [_VALUES_307[item_306] for item_306 in message.values]
+def _read_Barcode2DSymbologyList_311(message: types_pb2.Barcode2DSymbologyList, refs: wire.Refs) -> List[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D']]:
+  return [_VALUES_313[item_312] for item_312 in message.values]
 
 
 # What pylabrobot.hamilton.star.server.v1.ScanDirection's numbers are, as Literal['vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal'].
-_VALUES_308: Dict[int, Literal['vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal']] = {1: 'vertical', 2: 'horizontal', 3: 'omnidirectional', 4: 'vertical and horizontal'}
+_VALUES_314: Dict[int, Literal['vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal']] = {1: 'vertical', 2: 'horizontal', 3: 'omnidirectional', 4: 'vertical and horizontal'}
 
 
 async def call_autoload_set_barcode_scanner_enabled(target: Autoload, request: autoload_pb2.AutoloadSetBarcodeScannerEnabledRequest, refs: wire.Refs) -> Any:
@@ -11702,17 +11738,17 @@ async def call_autoload_set_barcode_scanner_enabled(target: Autoload, request: a
   a_enabled = request.enabled
   a_symbologies: Optional[List[Barcode1DSymbology]]
   if request.HasField('symbologies'):
-    a_symbologies = _read_BarcodeSymbologyList_302(request.symbologies, refs)
+    a_symbologies = _read_BarcodeSymbologyList_308(request.symbologies, refs)
   else:
     a_symbologies = None
   a_symbologies_2d: Optional[List[Barcode2DSymbology]]
   if request.HasField('symbologies_2d'):
-    a_symbologies_2d = _read_Barcode2DSymbologyList_305(request.symbologies_2d, refs)
+    a_symbologies_2d = _read_Barcode2DSymbologyList_311(request.symbologies_2d, refs)
   else:
     a_symbologies_2d = None
   a_scan_direction: ScanDirection
   if request.HasField('scan_direction'):
-    a_scan_direction = _VALUES_308[request.scan_direction]
+    a_scan_direction = _VALUES_314[request.scan_direction]
   else:
     a_scan_direction = 'horizontal'
   return await target.set_barcode_scanner_enabled(enabled=a_enabled, symbologies=a_symbologies, symbologies_2d=a_symbologies_2d, scan_direction=a_scan_direction)
@@ -11736,15 +11772,15 @@ def decode_autoload_set_barcode_scanner_enabled_response(response: autoload_pb2.
 def encode_autoload_set_barcode_symbologies_request(*, symbologies: List[Barcode1DSymbology]) -> autoload_pb2.AutoloadSetBarcodeSymbologiesRequest:
   """A call to Autoload.set_barcode_symbologies, as its request."""
   request = autoload_pb2.AutoloadSetBarcodeSymbologiesRequest()
-  for item_309 in symbologies:
-    request.symbologies.append(wire.enum_number(_ENUM_297, 'BarcodeSymbology', item_309))
+  for item_315 in symbologies:
+    request.symbologies.append(wire.enum_number(_ENUM_303, 'BarcodeSymbology', item_315))
   return request
 
 
 async def call_autoload_set_barcode_symbologies(target: Autoload, request: autoload_pb2.AutoloadSetBarcodeSymbologiesRequest, refs: wire.Refs) -> Any:
   """The call to Autoload.set_barcode_symbologies a request asks for."""
   a_symbologies: List[Barcode1DSymbology]
-  a_symbologies = [_VALUES_304[item_310] for item_310 in request.symbologies]
+  a_symbologies = [_VALUES_310[item_316] for item_316 in request.symbologies]
   return await target.set_barcode_symbologies(symbologies=a_symbologies)
 
 
@@ -11766,19 +11802,19 @@ def decode_autoload_set_barcode_symbologies_response(response: autoload_pb2.Auto
 def encode_autoload_set_loading_indicators_request(*, lit: List[bool], blinking: List[bool]) -> autoload_pb2.AutoloadSetLoadingIndicatorsRequest:
   """A call to Autoload.set_loading_indicators, as its request."""
   request = autoload_pb2.AutoloadSetLoadingIndicatorsRequest()
-  for item_311 in lit:
-    request.lit.append(bool(item_311))
-  for item_312 in blinking:
-    request.blinking.append(bool(item_312))
+  for item_317 in lit:
+    request.lit.append(bool(item_317))
+  for item_318 in blinking:
+    request.blinking.append(bool(item_318))
   return request
 
 
 async def call_autoload_set_loading_indicators(target: Autoload, request: autoload_pb2.AutoloadSetLoadingIndicatorsRequest, refs: wire.Refs) -> Any:
   """The call to Autoload.set_loading_indicators a request asks for."""
   a_lit: List[bool]
-  a_lit = [item_313 for item_313 in request.lit]
+  a_lit = [item_319 for item_319 in request.lit]
   a_blinking: List[bool]
-  a_blinking = [item_314 for item_314 in request.blinking]
+  a_blinking = [item_320 for item_320 in request.blinking]
   return await target.set_loading_indicators(lit=a_lit, blinking=a_blinking)
 
 
@@ -12025,7 +12061,7 @@ def decode_autoload_wheel_move_to_safe_z_response(response: autoload_pb2.Autoloa
 
 
 # pylabrobot.hamilton.star.server.v1.WheelYPosition's values, by their names' suffixes.
-_ENUM_315: Dict[str, types_pb2.WheelYPosition] = {'UNSPECIFIED': types_pb2.WHEEL_YPOSITION_UNSPECIFIED, 'LOADING_TRAY': types_pb2.WHEEL_YPOSITION_LOADING_TRAY, 'CARRIER_IDENTIFICATION': types_pb2.WHEEL_YPOSITION_CARRIER_IDENTIFICATION, 'DECK': types_pb2.WHEEL_YPOSITION_DECK}
+_ENUM_321: Dict[str, types_pb2.WheelYPosition] = {'UNSPECIFIED': types_pb2.WHEEL_YPOSITION_UNSPECIFIED, 'LOADING_TRAY': types_pb2.WHEEL_YPOSITION_LOADING_TRAY, 'CARRIER_IDENTIFICATION': types_pb2.WHEEL_YPOSITION_CARRIER_IDENTIFICATION, 'DECK': types_pb2.WHEEL_YPOSITION_DECK}
 
 
 def encode_autoload_wheel_move_to_y_position_request(*, y: Union[float, YPosition], speed: Optional[float], acceleration_ramp: Optional[int], current_limit: Optional[int]) -> autoload_pb2.AutoloadWheelMoveToYPositionRequest:
@@ -12034,7 +12070,7 @@ def encode_autoload_wheel_move_to_y_position_request(*, y: Union[float, YPositio
   if (isinstance(y, (int, float)) and not isinstance(y, bool)):
     request.y_value = float(y)
   elif (y in ('loading_tray', 'carrier_identification', 'deck')):
-    request.y_named = wire.enum_number(_ENUM_315, 'WheelYPosition', y)
+    request.y_named = wire.enum_number(_ENUM_321, 'WheelYPosition', y)
   else:
     raise TypeError(f"y: {y!r} is none of Union[float, Literal['loading_tray', 'carrier_identification', 'deck']]")
   if speed is not None:
@@ -12047,17 +12083,17 @@ def encode_autoload_wheel_move_to_y_position_request(*, y: Union[float, YPositio
 
 
 # What pylabrobot.hamilton.star.server.v1.WheelYPosition's numbers are, as Literal['loading_tray', 'carrier_identification', 'deck'].
-_VALUES_317: Dict[int, Literal['loading_tray', 'carrier_identification', 'deck']] = {1: 'loading_tray', 2: 'carrier_identification', 3: 'deck'}
+_VALUES_323: Dict[int, Literal['loading_tray', 'carrier_identification', 'deck']] = {1: 'loading_tray', 2: 'carrier_identification', 3: 'deck'}
 
 
 async def call_autoload_wheel_move_to_y_position(target: Autoload, request: autoload_pb2.AutoloadWheelMoveToYPositionRequest, refs: wire.Refs) -> float:
   """The call to Autoload.wheel_move_to_y_position a request asks for."""
   a_y: Union[float, YPosition]
-  which_316 = request.WhichOneof('y')
-  if which_316 == 'y_value':
+  which_322 = request.WhichOneof('y')
+  if which_322 == 'y_value':
     a_y = request.y_value
-  elif which_316 == 'y_named':
-    a_y = _VALUES_317[request.y_named]
+  elif which_322 == 'y_named':
+    a_y = _VALUES_323[request.y_named]
   else:
     raise TypeError("wheel_move_to_y_position() missing required argument: 'y'")
   a_speed: Optional[float]
@@ -12092,7 +12128,7 @@ def decode_autoload_wheel_move_to_y_position_response(response: autoload_pb2.Aut
 
 
 # pylabrobot.hamilton.star.server.v1.WheelZPosition's values, by their names' suffixes.
-_ENUM_318: Dict[str, types_pb2.WheelZPosition] = {'UNSPECIFIED': types_pb2.WHEEL_ZPOSITION_UNSPECIFIED, 'BELOW': types_pb2.WHEEL_ZPOSITION_BELOW, 'ABOVE': types_pb2.WHEEL_ZPOSITION_ABOVE}
+_ENUM_324: Dict[str, types_pb2.WheelZPosition] = {'UNSPECIFIED': types_pb2.WHEEL_ZPOSITION_UNSPECIFIED, 'BELOW': types_pb2.WHEEL_ZPOSITION_BELOW, 'ABOVE': types_pb2.WHEEL_ZPOSITION_ABOVE}
 
 
 def encode_autoload_wheel_move_to_z_position_request(*, z: Union[float, ZPosition], speed: Optional[float], acceleration_ramp: Optional[int], current_limit: Optional[int]) -> autoload_pb2.AutoloadWheelMoveToZPositionRequest:
@@ -12101,7 +12137,7 @@ def encode_autoload_wheel_move_to_z_position_request(*, z: Union[float, ZPositio
   if (isinstance(z, (int, float)) and not isinstance(z, bool)):
     request.z_value = float(z)
   elif (z in ('below', 'above')):
-    request.z_named = wire.enum_number(_ENUM_318, 'WheelZPosition', z)
+    request.z_named = wire.enum_number(_ENUM_324, 'WheelZPosition', z)
   else:
     raise TypeError(f"z: {z!r} is none of Union[float, Literal['below', 'above']]")
   if speed is not None:
@@ -12114,17 +12150,17 @@ def encode_autoload_wheel_move_to_z_position_request(*, z: Union[float, ZPositio
 
 
 # What pylabrobot.hamilton.star.server.v1.WheelZPosition's numbers are, as Literal['below', 'above'].
-_VALUES_320: Dict[int, Literal['below', 'above']] = {1: 'below', 2: 'above'}
+_VALUES_326: Dict[int, Literal['below', 'above']] = {1: 'below', 2: 'above'}
 
 
 async def call_autoload_wheel_move_to_z_position(target: Autoload, request: autoload_pb2.AutoloadWheelMoveToZPositionRequest, refs: wire.Refs) -> float:
   """The call to Autoload.wheel_move_to_z_position a request asks for."""
   a_z: Union[float, ZPosition]
-  which_319 = request.WhichOneof('z')
-  if which_319 == 'z_value':
+  which_325 = request.WhichOneof('z')
+  if which_325 == 'z_value':
     a_z = request.z_value
-  elif which_319 == 'z_named':
-    a_z = _VALUES_320[request.z_named]
+  elif which_325 == 'z_named':
+    a_z = _VALUES_326[request.z_named]
   else:
     raise TypeError("wheel_move_to_z_position() missing required argument: 'z'")
   a_speed: Optional[float]
@@ -12570,24 +12606,24 @@ async def call_front_cover_request_state(target: FrontCover, request: front_cove
 
 
 # pylabrobot.hamilton.star.server.v1.FrontCoverState's values, by their names' suffixes.
-_ENUM_321: Dict[str, types_pb2.FrontCoverState] = {'UNSPECIFIED': types_pb2.FRONT_COVER_STATE_UNSPECIFIED, 'OPEN': types_pb2.FRONT_COVER_STATE_OPEN, 'CLOSED': types_pb2.FRONT_COVER_STATE_CLOSED}
+_ENUM_327: Dict[str, types_pb2.FrontCoverState] = {'UNSPECIFIED': types_pb2.FRONT_COVER_STATE_UNSPECIFIED, 'OPEN': types_pb2.FRONT_COVER_STATE_OPEN, 'CLOSED': types_pb2.FRONT_COVER_STATE_CLOSED}
 
 
 # What pylabrobot.hamilton.star.server.v1.FrontCoverState's numbers are, as Literal['open', 'closed'].
-_VALUES_322: Dict[int, Literal['open', 'closed']] = {1: 'open', 2: 'closed'}
+_VALUES_328: Dict[int, Literal['open', 'closed']] = {1: 'open', 2: 'closed'}
 
 
 def encode_front_cover_request_state_response(value: Literal['open', 'closed']) -> front_cover_pb2.FrontCoverRequestStateResponse:
   """What FrontCover.request_state returned, as its response."""
   response = front_cover_pb2.FrontCoverRequestStateResponse()
-  response.state = wire.enum_number(_ENUM_321, 'FrontCoverState', value)
+  response.state = wire.enum_number(_ENUM_327, 'FrontCoverState', value)
   return response
 
 
 def decode_front_cover_request_state_response(response: front_cover_pb2.FrontCoverRequestStateResponse) -> Literal['open', 'closed']:
   """What FrontCover.request_state returned, from its response."""
   refs: wire.Refs = {}
-  return _VALUES_322[response.state]
+  return _VALUES_328[response.state]
 
 
 def fill_device_configuration(message: driver_pb2.DeviceConfiguration, value: DeviceConfiguration) -> None:
@@ -12600,7 +12636,7 @@ def read_device_configuration(message: driver_pb2.DeviceConfiguration) -> Device
   return _read_DeviceConfiguration_11(message, {})
 
 
-def _fill_PipettesConfiguration_323(message: pipettes_pb2.PipettesConfiguration, value: PipettesConfiguration) -> None:
+def _fill_PipettesConfiguration_329(message: pipettes_pb2.PipettesConfiguration, value: PipettesConfiguration) -> None:
   message.hardware_query_first_year = int(value.hardware_query_first_year)
   message.initialize_y_range.SetInParent()
   _fill_DoubleRange_9(message.initialize_y_range, value.initialize_y_range)
@@ -12653,8 +12689,8 @@ def _fill_PipettesConfiguration_323(message: pipettes_pb2.PipettesConfiguration,
   _fill_Int32Range_10(message.z_drive_current_limit_range, value.z_drive_current_limit_range)
   message.z_touch_pwm_range.SetInParent()
   _fill_Int32Range_10(message.z_touch_pwm_range, value.z_touch_pwm_range)
-  for key_324, item_325 in value.drive_parameters.items():
-    message.drive_parameters[key_324] = int(item_325)
+  for key_330, item_331 in value.drive_parameters.items():
+    message.drive_parameters[key_330] = int(item_331)
   message.z_range.SetInParent()
   _fill_DoubleRange_9(message.z_range, value.z_range)
   message.dispensing_drive_mm_per_increment = float(value.dispensing_drive_mm_per_increment)
@@ -12712,11 +12748,11 @@ def _fill_PipettesConfiguration_323(message: pipettes_pb2.PipettesConfiguration,
   message.side_touch_off_distance_range_increments.SetInParent()
   _fill_Int32Range_10(message.side_touch_off_distance_range_increments, value.side_touch_off_distance_range_increments)
   message.channel_size_z = float(value.channel_size_z)
-  for item_326 in value.channels:
-    _fill_PipetteConfiguration_177(message.channels.add(), item_326)
+  for item_332 in value.channels:
+    _fill_PipetteConfiguration_183(message.channels.add(), item_332)
 
 
-def _read_PipettesConfiguration_327(message: pipettes_pb2.PipettesConfiguration, refs: wire.Refs) -> PipettesConfiguration:
+def _read_PipettesConfiguration_333(message: pipettes_pb2.PipettesConfiguration, refs: wire.Refs) -> PipettesConfiguration:
   return PipettesConfiguration(
     hardware_query_first_year=message.hardware_query_first_year,
     initialize_y_range=(_read_DoubleRange_13(message.initialize_y_range, refs) if message.HasField('initialize_y_range') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.initialize_y_range')),
@@ -12750,7 +12786,7 @@ def _read_PipettesConfiguration_327(message: pipettes_pb2.PipettesConfiguration,
     z_drive_acceleration_range_increments=(_read_Int32Range_14(message.z_drive_acceleration_range_increments, refs) if message.HasField('z_drive_acceleration_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.z_drive_acceleration_range_increments')),
     z_drive_current_limit_range=(_read_Int32Range_14(message.z_drive_current_limit_range, refs) if message.HasField('z_drive_current_limit_range') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.z_drive_current_limit_range')),
     z_touch_pwm_range=(_read_Int32Range_14(message.z_touch_pwm_range, refs) if message.HasField('z_touch_pwm_range') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.z_touch_pwm_range')),
-    drive_parameters={key_328: item_329 for key_328, item_329 in message.drive_parameters.items()},
+    drive_parameters={key_334: item_335 for key_334, item_335 in message.drive_parameters.items()},
     z_range=(_read_DoubleRange_13(message.z_range, refs) if message.HasField('z_range') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.z_range')),
     dispensing_drive_mm_per_increment=message.dispensing_drive_mm_per_increment,
     dispensing_drive_uL_per_increment=message.dispensing_drive_uL_per_increment,
@@ -12781,30 +12817,30 @@ def _read_PipettesConfiguration_327(message: pipettes_pb2.PipettesConfiguration,
     stop_back_volume_range_increments=(_read_Int32Range_14(message.stop_back_volume_range_increments, refs) if message.HasField('stop_back_volume_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.stop_back_volume_range_increments')),
     side_touch_off_distance_range_increments=(_read_Int32Range_14(message.side_touch_off_distance_range_increments, refs) if message.HasField('side_touch_off_distance_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.PipettesConfiguration.side_touch_off_distance_range_increments')),
     channel_size_z=message.channel_size_z,
-    channels=[_read_PipetteConfiguration_182(item_330, refs) for item_330 in message.channels],
+    channels=[_read_PipetteConfiguration_188(item_336, refs) for item_336 in message.channels],
   )
 
 
 def fill_pipettes_configuration(message: pipettes_pb2.PipettesConfiguration, value: PipettesConfiguration) -> None:
   """A PipettesConfiguration from a PipettesConfiguration."""
-  _fill_PipettesConfiguration_323(message, value)
+  _fill_PipettesConfiguration_329(message, value)
 
 
 def read_pipettes_configuration(message: pipettes_pb2.PipettesConfiguration) -> PipettesConfiguration:
   """A PipettesConfiguration as a PipettesConfiguration."""
-  return _read_PipettesConfiguration_327(message, {})
+  return _read_PipettesConfiguration_333(message, {})
 
 
-def _fill_StringInt32Map_337(message: types_pb2.StringInt32Map, value: Dict[str, int]) -> None:
-  for key_338, item_339 in value.items():
-    message.entries[key_338] = int(item_339)
+def _fill_StringInt32Map_343(message: types_pb2.StringInt32Map, value: Dict[str, int]) -> None:
+  for key_344, item_345 in value.items():
+    message.entries[key_344] = int(item_345)
 
 
 # pylabrobot.hamilton.star.server.v1.Head96InstrumentType's values, by their names' suffixes.
-_ENUM_341: Dict[str, types_pb2.Head96InstrumentType] = {'UNSPECIFIED': types_pb2.HEAD96_INSTRUMENT_TYPE_UNSPECIFIED, 'LEGACY': types_pb2.HEAD96_INSTRUMENT_TYPE_LEGACY, 'FM_STAR': types_pb2.HEAD96_INSTRUMENT_TYPE_FM_STAR}
+_ENUM_347: Dict[str, types_pb2.Head96InstrumentType] = {'UNSPECIFIED': types_pb2.HEAD96_INSTRUMENT_TYPE_UNSPECIFIED, 'LEGACY': types_pb2.HEAD96_INSTRUMENT_TYPE_LEGACY, 'FM_STAR': types_pb2.HEAD96_INSTRUMENT_TYPE_FM_STAR}
 
 
-def _fill_Head96Configuration_331(message: head96_pb2.Head96Configuration, value: Head96Configuration) -> None:
+def _fill_Head96Configuration_337(message: head96_pb2.Head96Configuration, value: Head96Configuration) -> None:
   message.module = wire.text(value.module)
   message.retract_command = wire.text(value.retract_command)
   message.initialize_command = wire.text(value.initialize_command)
@@ -12814,10 +12850,10 @@ def _fill_Head96Configuration_331(message: head96_pb2.Head96Configuration, value
   message.z_parameter = wire.text(value.z_parameter)
   message.z_end_parameter = wire.text(value.z_end_parameter)
   message.x_offset_parameter = wire.text(value.x_offset_parameter)
-  for key_332, item_333 in value.head_types.items():
-    message.head_types[key_332] = wire.text(item_333)
-  for key_334, item_335 in value.drive_parameters.items():
-    message.drive_parameters[key_334] = int(item_335)
+  for key_338, item_339 in value.head_types.items():
+    message.head_types[key_338] = wire.text(item_339)
+  for key_340, item_341 in value.drive_parameters.items():
+    message.drive_parameters[key_340] = int(item_341)
   message.first_documented_firmware_year = int(value.first_documented_firmware_year)
   if value.firmware_version is not None:
     message.firmware_version = wire.text(value.firmware_version)
@@ -12854,16 +12890,16 @@ def _fill_Head96Configuration_331(message: head96_pb2.Head96Configuration, value
   _fill_Int32Range_10(message.z_acceleration_range_increments, value.z_acceleration_range_increments)
   message.predefined_y_position_origin = int(value.predefined_y_position_origin)
   message.predefined_z_position_origin = int(value.predefined_z_position_origin)
-  for item_336 in value.predefined_y_slots:
-    message.predefined_y_slots.append(wire.text(item_336))
+  for item_342 in value.predefined_y_slots:
+    message.predefined_y_slots.append(wire.text(item_342))
   if value.predefined_y_positions_increments is not None:
     message.predefined_y_positions_increments.SetInParent()
-    _fill_StringInt32Map_337(message.predefined_y_positions_increments, value.predefined_y_positions_increments)
-  for item_340 in value.predefined_z_slots:
-    message.predefined_z_slots.append(wire.text(item_340))
+    _fill_StringInt32Map_343(message.predefined_y_positions_increments, value.predefined_y_positions_increments)
+  for item_346 in value.predefined_z_slots:
+    message.predefined_z_slots.append(wire.text(item_346))
   if value.predefined_z_positions_increments is not None:
     message.predefined_z_positions_increments.SetInParent()
-    _fill_StringInt32Map_337(message.predefined_z_positions_increments, value.predefined_z_positions_increments)
+    _fill_StringInt32Map_343(message.predefined_z_positions_increments, value.predefined_z_positions_increments)
   message.traversal_z_position = float(value.traversal_z_position)
   message.y_drive_current_limit_default = int(value.y_drive_current_limit_default)
   message.z_drive_current_limit_default = int(value.z_drive_current_limit_default)
@@ -12888,9 +12924,9 @@ def _fill_Head96Configuration_331(message: head96_pb2.Head96Configuration, value
   if value.squeezer_drive_acceleration_firmware_reported is not None:
     message.squeezer_drive_acceleration_firmware_reported = float(value.squeezer_drive_acceleration_firmware_reported)
   if value.stop_disc_type is not None:
-    message.stop_disc_type = wire.enum_number(_ENUM_180, 'StopDiscType', value.stop_disc_type)
+    message.stop_disc_type = wire.enum_number(_ENUM_186, 'StopDiscType', value.stop_disc_type)
   if value.instrument_type is not None:
-    message.instrument_type = wire.enum_number(_ENUM_341, 'Head96InstrumentType', value.instrument_type)
+    message.instrument_type = wire.enum_number(_ENUM_347, 'Head96InstrumentType', value.instrument_type)
   message.dispensing_drive_uL_per_increment = float(value.dispensing_drive_uL_per_increment)
   message.squeezer_drive_mm_per_increment = float(value.squeezer_drive_mm_per_increment)
   message.tip_command_y_range.SetInParent()
@@ -12927,15 +12963,15 @@ def _fill_Head96Configuration_331(message: head96_pb2.Head96Configuration, value
   message.y_increment_floor = int(value.y_increment_floor)
 
 
-def _read_StringInt32Map_348(message: types_pb2.StringInt32Map, refs: wire.Refs) -> Dict[str, int]:
-  return {key_349: item_350 for key_349, item_350 in message.entries.items()}
+def _read_StringInt32Map_354(message: types_pb2.StringInt32Map, refs: wire.Refs) -> Dict[str, int]:
+  return {key_355: item_356 for key_355, item_356 in message.entries.items()}
 
 
 # What pylabrobot.hamilton.star.server.v1.Head96InstrumentType's numbers are, as Literal['legacy', 'FM-STAR'].
-_VALUES_352: Dict[int, Literal['legacy', 'FM-STAR']] = {1: 'legacy', 2: 'FM-STAR'}
+_VALUES_358: Dict[int, Literal['legacy', 'FM-STAR']] = {1: 'legacy', 2: 'FM-STAR'}
 
 
-def _read_Head96Configuration_342(message: head96_pb2.Head96Configuration, refs: wire.Refs) -> Head96Configuration:
+def _read_Head96Configuration_348(message: head96_pb2.Head96Configuration, refs: wire.Refs) -> Head96Configuration:
   return Head96Configuration(
     module=message.module,
     retract_command=message.retract_command,
@@ -12946,8 +12982,8 @@ def _read_Head96Configuration_342(message: head96_pb2.Head96Configuration, refs:
     z_parameter=message.z_parameter,
     z_end_parameter=message.z_end_parameter,
     x_offset_parameter=message.x_offset_parameter,
-    head_types={key_343: item_344 for key_343, item_344 in message.head_types.items()},
-    drive_parameters={key_345: item_346 for key_345, item_346 in message.drive_parameters.items()},
+    head_types={key_349: item_350 for key_349, item_350 in message.head_types.items()},
+    drive_parameters={key_351: item_352 for key_351, item_352 in message.drive_parameters.items()},
     first_documented_firmware_year=message.first_documented_firmware_year,
     firmware_version=(message.firmware_version if message.HasField('firmware_version') else None),
     firmware_date=(wire.read_date(message.firmware_date, refs) if message.HasField('firmware_date') else None),
@@ -12973,10 +13009,10 @@ def _read_Head96Configuration_342(message: head96_pb2.Head96Configuration, refs:
     z_acceleration_range_increments=(_read_Int32Range_14(message.z_acceleration_range_increments, refs) if message.HasField('z_acceleration_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.Head96Configuration.z_acceleration_range_increments')),
     predefined_y_position_origin=message.predefined_y_position_origin,
     predefined_z_position_origin=message.predefined_z_position_origin,
-    predefined_y_slots=tuple([item_347 for item_347 in message.predefined_y_slots]),
-    predefined_y_positions_increments=(_read_StringInt32Map_348(message.predefined_y_positions_increments, refs) if message.HasField('predefined_y_positions_increments') else None),
-    predefined_z_slots=tuple([item_351 for item_351 in message.predefined_z_slots]),
-    predefined_z_positions_increments=(_read_StringInt32Map_348(message.predefined_z_positions_increments, refs) if message.HasField('predefined_z_positions_increments') else None),
+    predefined_y_slots=tuple([item_353 for item_353 in message.predefined_y_slots]),
+    predefined_y_positions_increments=(_read_StringInt32Map_354(message.predefined_y_positions_increments, refs) if message.HasField('predefined_y_positions_increments') else None),
+    predefined_z_slots=tuple([item_357 for item_357 in message.predefined_z_slots]),
+    predefined_z_positions_increments=(_read_StringInt32Map_354(message.predefined_z_positions_increments, refs) if message.HasField('predefined_z_positions_increments') else None),
     traversal_z_position=message.traversal_z_position,
     y_drive_current_limit_default=message.y_drive_current_limit_default,
     z_drive_current_limit_default=message.z_drive_current_limit_default,
@@ -12992,8 +13028,8 @@ def _read_Head96Configuration_342(message: head96_pb2.Head96Configuration, refs:
     z_drive_acceleration_firmware_reported=(message.z_drive_acceleration_firmware_reported if message.HasField('z_drive_acceleration_firmware_reported') else None),
     squeezer_drive_speed_firmware_reported=(message.squeezer_drive_speed_firmware_reported if message.HasField('squeezer_drive_speed_firmware_reported') else None),
     squeezer_drive_acceleration_firmware_reported=(message.squeezer_drive_acceleration_firmware_reported if message.HasField('squeezer_drive_acceleration_firmware_reported') else None),
-    stop_disc_type=(_VALUES_185[message.stop_disc_type] if message.HasField('stop_disc_type') else None),
-    instrument_type=(_VALUES_352[message.instrument_type] if message.HasField('instrument_type') else None),
+    stop_disc_type=(_VALUES_191[message.stop_disc_type] if message.HasField('stop_disc_type') else None),
+    instrument_type=(_VALUES_358[message.instrument_type] if message.HasField('instrument_type') else None),
     dispensing_drive_uL_per_increment=message.dispensing_drive_uL_per_increment,
     squeezer_drive_mm_per_increment=message.squeezer_drive_mm_per_increment,
     tip_command_y_range=(_read_DoubleRange_13(message.tip_command_y_range, refs) if message.HasField('tip_command_y_range') else wire.missing('pylabrobot.hamilton.star.server.v1.Head96Configuration.tip_command_y_range')),
@@ -13018,15 +13054,15 @@ def _read_Head96Configuration_342(message: head96_pb2.Head96Configuration, refs:
 
 def fill_head96_configuration(message: head96_pb2.Head96Configuration, value: Head96Configuration) -> None:
   """A Head96Configuration from a Head96Configuration."""
-  _fill_Head96Configuration_331(message, value)
+  _fill_Head96Configuration_337(message, value)
 
 
 def read_head96_configuration(message: head96_pb2.Head96Configuration) -> Head96Configuration:
   """A Head96Configuration as a Head96Configuration."""
-  return _read_Head96Configuration_342(message, {})
+  return _read_Head96Configuration_348(message, {})
 
 
-def _fill_Head384Configuration_353(message: head384_pb2.Head384Configuration, value: Head384Configuration) -> None:
+def _fill_Head384Configuration_359(message: head384_pb2.Head384Configuration, value: Head384Configuration) -> None:
   message.module = wire.text(value.module)
   message.retract_command = wire.text(value.retract_command)
   message.initialize_command = wire.text(value.initialize_command)
@@ -13036,10 +13072,10 @@ def _fill_Head384Configuration_353(message: head384_pb2.Head384Configuration, va
   message.z_parameter = wire.text(value.z_parameter)
   message.z_end_parameter = wire.text(value.z_end_parameter)
   message.x_offset_parameter = wire.text(value.x_offset_parameter)
-  for key_354, item_355 in value.head_types.items():
-    message.head_types[key_354] = wire.text(item_355)
-  for key_356, item_357 in value.drive_parameters.items():
-    message.drive_parameters[key_356] = int(item_357)
+  for key_360, item_361 in value.head_types.items():
+    message.head_types[key_360] = wire.text(item_361)
+  for key_362, item_363 in value.drive_parameters.items():
+    message.drive_parameters[key_362] = int(item_363)
   message.first_documented_firmware_year = int(value.first_documented_firmware_year)
   if value.firmware_version is not None:
     message.firmware_version = wire.text(value.firmware_version)
@@ -13076,16 +13112,16 @@ def _fill_Head384Configuration_353(message: head384_pb2.Head384Configuration, va
   _fill_Int32Range_10(message.z_acceleration_range_increments, value.z_acceleration_range_increments)
   message.predefined_y_position_origin = int(value.predefined_y_position_origin)
   message.predefined_z_position_origin = int(value.predefined_z_position_origin)
-  for item_358 in value.predefined_y_slots:
-    message.predefined_y_slots.append(wire.text(item_358))
+  for item_364 in value.predefined_y_slots:
+    message.predefined_y_slots.append(wire.text(item_364))
   if value.predefined_y_positions_increments is not None:
     message.predefined_y_positions_increments.SetInParent()
-    _fill_StringInt32Map_337(message.predefined_y_positions_increments, value.predefined_y_positions_increments)
-  for item_359 in value.predefined_z_slots:
-    message.predefined_z_slots.append(wire.text(item_359))
+    _fill_StringInt32Map_343(message.predefined_y_positions_increments, value.predefined_y_positions_increments)
+  for item_365 in value.predefined_z_slots:
+    message.predefined_z_slots.append(wire.text(item_365))
   if value.predefined_z_positions_increments is not None:
     message.predefined_z_positions_increments.SetInParent()
-    _fill_StringInt32Map_337(message.predefined_z_positions_increments, value.predefined_z_positions_increments)
+    _fill_StringInt32Map_343(message.predefined_z_positions_increments, value.predefined_z_positions_increments)
   message.traversal_z_position = float(value.traversal_z_position)
   message.y_drive_current_limit_default = int(value.y_drive_current_limit_default)
   message.z_drive_current_limit_default = int(value.z_drive_current_limit_default)
@@ -13117,7 +13153,7 @@ def _fill_Head384Configuration_353(message: head384_pb2.Head384Configuration, va
   _fill_Int32Range_10(message.z_range_increments, value.z_range_increments)
 
 
-def _read_Head384Configuration_360(message: head384_pb2.Head384Configuration, refs: wire.Refs) -> Head384Configuration:
+def _read_Head384Configuration_366(message: head384_pb2.Head384Configuration, refs: wire.Refs) -> Head384Configuration:
   return Head384Configuration(
     module=message.module,
     retract_command=message.retract_command,
@@ -13128,8 +13164,8 @@ def _read_Head384Configuration_360(message: head384_pb2.Head384Configuration, re
     z_parameter=message.z_parameter,
     z_end_parameter=message.z_end_parameter,
     x_offset_parameter=message.x_offset_parameter,
-    head_types={key_361: item_362 for key_361, item_362 in message.head_types.items()},
-    drive_parameters={key_363: item_364 for key_363, item_364 in message.drive_parameters.items()},
+    head_types={key_367: item_368 for key_367, item_368 in message.head_types.items()},
+    drive_parameters={key_369: item_370 for key_369, item_370 in message.drive_parameters.items()},
     first_documented_firmware_year=message.first_documented_firmware_year,
     firmware_version=(message.firmware_version if message.HasField('firmware_version') else None),
     firmware_date=(wire.read_date(message.firmware_date, refs) if message.HasField('firmware_date') else None),
@@ -13155,10 +13191,10 @@ def _read_Head384Configuration_360(message: head384_pb2.Head384Configuration, re
     z_acceleration_range_increments=(_read_Int32Range_14(message.z_acceleration_range_increments, refs) if message.HasField('z_acceleration_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.Head384Configuration.z_acceleration_range_increments')),
     predefined_y_position_origin=message.predefined_y_position_origin,
     predefined_z_position_origin=message.predefined_z_position_origin,
-    predefined_y_slots=tuple([item_365 for item_365 in message.predefined_y_slots]),
-    predefined_y_positions_increments=(_read_StringInt32Map_348(message.predefined_y_positions_increments, refs) if message.HasField('predefined_y_positions_increments') else None),
-    predefined_z_slots=tuple([item_366 for item_366 in message.predefined_z_slots]),
-    predefined_z_positions_increments=(_read_StringInt32Map_348(message.predefined_z_positions_increments, refs) if message.HasField('predefined_z_positions_increments') else None),
+    predefined_y_slots=tuple([item_371 for item_371 in message.predefined_y_slots]),
+    predefined_y_positions_increments=(_read_StringInt32Map_354(message.predefined_y_positions_increments, refs) if message.HasField('predefined_y_positions_increments') else None),
+    predefined_z_slots=tuple([item_372 for item_372 in message.predefined_z_slots]),
+    predefined_z_positions_increments=(_read_StringInt32Map_354(message.predefined_z_positions_increments, refs) if message.HasField('predefined_z_positions_increments') else None),
     traversal_z_position=message.traversal_z_position,
     y_drive_current_limit_default=message.y_drive_current_limit_default,
     z_drive_current_limit_default=message.z_drive_current_limit_default,
@@ -13182,15 +13218,15 @@ def _read_Head384Configuration_360(message: head384_pb2.Head384Configuration, re
 
 def fill_head384_configuration(message: head384_pb2.Head384Configuration, value: Head384Configuration) -> None:
   """A Head384Configuration from a Head384Configuration."""
-  _fill_Head384Configuration_353(message, value)
+  _fill_Head384Configuration_359(message, value)
 
 
 def read_head384_configuration(message: head384_pb2.Head384Configuration) -> Head384Configuration:
   """A Head384Configuration as a Head384Configuration."""
-  return _read_Head384Configuration_360(message, {})
+  return _read_Head384Configuration_366(message, {})
 
 
-def _fill_ISwapYPositions_368(message: iswap_pb2.ISwapYPositions, value: iSWAPYPositions) -> None:
+def _fill_ISwapYPositions_374(message: iswap_pb2.ISwapYPositions, value: iSWAPYPositions) -> None:
   message.home = int(value.home)
   message.lower_limit = int(value.lower_limit)
   message.upper_limit = int(value.upper_limit)
@@ -13203,7 +13239,7 @@ def _fill_ISwapYPositions_368(message: iswap_pb2.ISwapYPositions, value: iSWAPYP
   message.extra_5 = int(value.extra_5)
 
 
-def _fill_ISwapZPositions_369(message: iswap_pb2.ISwapZPositions, value: iSWAPZPositions) -> None:
+def _fill_ISwapZPositions_375(message: iswap_pb2.ISwapZPositions, value: iSWAPZPositions) -> None:
   message.home = int(value.home)
   message.parking = int(value.parking)
   message.extra_1 = int(value.extra_1)
@@ -13216,7 +13252,7 @@ def _fill_ISwapZPositions_369(message: iswap_pb2.ISwapZPositions, value: iSWAPZP
   message.extra_8 = int(value.extra_8)
 
 
-def _fill_ISwapGripperPositions_370(message: iswap_pb2.ISwapGripperPositions, value: iSWAPGripperPositions) -> None:
+def _fill_ISwapGripperPositions_376(message: iswap_pb2.ISwapGripperPositions, value: iSWAPGripperPositions) -> None:
   message.home = int(value.home)
   message.extra_1 = int(value.extra_1)
   message.closed = int(value.closed)
@@ -13229,7 +13265,7 @@ def _fill_ISwapGripperPositions_370(message: iswap_pb2.ISwapGripperPositions, va
   message.plate_type_7 = int(value.plate_type_7)
 
 
-def _fill_ISwapConfiguration_367(message: iswap_pb2.ISwapConfiguration, value: iSWAPConfiguration) -> None:
+def _fill_ISwapConfiguration_373(message: iswap_pb2.ISwapConfiguration, value: iSWAPConfiguration) -> None:
   message.module = wire.text(value.module)
   if value.firmware_version is not None:
     message.firmware_version = wire.text(value.firmware_version)
@@ -13244,19 +13280,19 @@ def _fill_ISwapConfiguration_367(message: iswap_pb2.ISwapConfiguration, value: i
     message.elbow_x_offset = float(value.elbow_x_offset)
   if value.elbow_predefined_y_positions_increments is not None:
     message.elbow_predefined_y_positions_increments.SetInParent()
-    _fill_ISwapYPositions_368(message.elbow_predefined_y_positions_increments, value.elbow_predefined_y_positions_increments)
+    _fill_ISwapYPositions_374(message.elbow_predefined_y_positions_increments, value.elbow_predefined_y_positions_increments)
   if value.elbow_predefined_z_positions_increments is not None:
     message.elbow_predefined_z_positions_increments.SetInParent()
-    _fill_ISwapZPositions_369(message.elbow_predefined_z_positions_increments, value.elbow_predefined_z_positions_increments)
+    _fill_ISwapZPositions_375(message.elbow_predefined_z_positions_increments, value.elbow_predefined_z_positions_increments)
   if value.elbow_drive_predefined_increments is not None:
     message.elbow_drive_predefined_increments.SetInParent()
-    _fill_ISwapElbowPositions_234(message.elbow_drive_predefined_increments, value.elbow_drive_predefined_increments)
+    _fill_ISwapElbowPositions_240(message.elbow_drive_predefined_increments, value.elbow_drive_predefined_increments)
   if value.wrist_drive_predefined_increments is not None:
     message.wrist_drive_predefined_increments.SetInParent()
-    _fill_ISwapWristPositions_269(message.wrist_drive_predefined_increments, value.wrist_drive_predefined_increments)
+    _fill_ISwapWristPositions_275(message.wrist_drive_predefined_increments, value.wrist_drive_predefined_increments)
   if value.gripper_drive_predefined_increments is not None:
     message.gripper_drive_predefined_increments.SetInParent()
-    _fill_ISwapGripperPositions_370(message.gripper_drive_predefined_increments, value.gripper_drive_predefined_increments)
+    _fill_ISwapGripperPositions_376(message.gripper_drive_predefined_increments, value.gripper_drive_predefined_increments)
   message.y_range_increments.SetInParent()
   _fill_Int32Range_10(message.y_range_increments, value.y_range_increments)
   message.y_mm_per_increment = float(value.y_mm_per_increment)
@@ -13321,7 +13357,7 @@ def _fill_ISwapConfiguration_367(message: iswap_pb2.ISwapConfiguration, value: i
   message.gripper_counter_drift_increments = int(value.gripper_counter_drift_increments)
 
 
-def _read_ISwapYPositions_372(message: iswap_pb2.ISwapYPositions, refs: wire.Refs) -> iSWAPYPositions:
+def _read_ISwapYPositions_378(message: iswap_pb2.ISwapYPositions, refs: wire.Refs) -> iSWAPYPositions:
   return iSWAPYPositions(
     home=message.home,
     lower_limit=message.lower_limit,
@@ -13336,7 +13372,7 @@ def _read_ISwapYPositions_372(message: iswap_pb2.ISwapYPositions, refs: wire.Ref
   )
 
 
-def _read_ISwapZPositions_373(message: iswap_pb2.ISwapZPositions, refs: wire.Refs) -> iSWAPZPositions:
+def _read_ISwapZPositions_379(message: iswap_pb2.ISwapZPositions, refs: wire.Refs) -> iSWAPZPositions:
   return iSWAPZPositions(
     home=message.home,
     parking=message.parking,
@@ -13351,7 +13387,7 @@ def _read_ISwapZPositions_373(message: iswap_pb2.ISwapZPositions, refs: wire.Ref
   )
 
 
-def _read_ISwapGripperPositions_374(message: iswap_pb2.ISwapGripperPositions, refs: wire.Refs) -> iSWAPGripperPositions:
+def _read_ISwapGripperPositions_380(message: iswap_pb2.ISwapGripperPositions, refs: wire.Refs) -> iSWAPGripperPositions:
   return iSWAPGripperPositions(
     home=message.home,
     extra_1=message.extra_1,
@@ -13366,7 +13402,7 @@ def _read_ISwapGripperPositions_374(message: iswap_pb2.ISwapGripperPositions, re
   )
 
 
-def _read_ISwapConfiguration_371(message: iswap_pb2.ISwapConfiguration, refs: wire.Refs) -> iSWAPConfiguration:
+def _read_ISwapConfiguration_377(message: iswap_pb2.ISwapConfiguration, refs: wire.Refs) -> iSWAPConfiguration:
   return iSWAPConfiguration(
     module=message.module,
     firmware_version=(message.firmware_version if message.HasField('firmware_version') else None),
@@ -13374,11 +13410,11 @@ def _read_ISwapConfiguration_371(message: iswap_pb2.ISwapConfiguration, refs: wi
     link_1_length=(message.link_1_length if message.HasField('link_1_length') else None),
     tool_length=(message.tool_length if message.HasField('tool_length') else None),
     elbow_x_offset=(message.elbow_x_offset if message.HasField('elbow_x_offset') else None),
-    elbow_predefined_y_positions_increments=(_read_ISwapYPositions_372(message.elbow_predefined_y_positions_increments, refs) if message.HasField('elbow_predefined_y_positions_increments') else None),
-    elbow_predefined_z_positions_increments=(_read_ISwapZPositions_373(message.elbow_predefined_z_positions_increments, refs) if message.HasField('elbow_predefined_z_positions_increments') else None),
-    elbow_drive_predefined_increments=(_read_ISwapElbowPositions_235(message.elbow_drive_predefined_increments, refs) if message.HasField('elbow_drive_predefined_increments') else None),
-    wrist_drive_predefined_increments=(_read_ISwapWristPositions_270(message.wrist_drive_predefined_increments, refs) if message.HasField('wrist_drive_predefined_increments') else None),
-    gripper_drive_predefined_increments=(_read_ISwapGripperPositions_374(message.gripper_drive_predefined_increments, refs) if message.HasField('gripper_drive_predefined_increments') else None),
+    elbow_predefined_y_positions_increments=(_read_ISwapYPositions_378(message.elbow_predefined_y_positions_increments, refs) if message.HasField('elbow_predefined_y_positions_increments') else None),
+    elbow_predefined_z_positions_increments=(_read_ISwapZPositions_379(message.elbow_predefined_z_positions_increments, refs) if message.HasField('elbow_predefined_z_positions_increments') else None),
+    elbow_drive_predefined_increments=(_read_ISwapElbowPositions_241(message.elbow_drive_predefined_increments, refs) if message.HasField('elbow_drive_predefined_increments') else None),
+    wrist_drive_predefined_increments=(_read_ISwapWristPositions_276(message.wrist_drive_predefined_increments, refs) if message.HasField('wrist_drive_predefined_increments') else None),
+    gripper_drive_predefined_increments=(_read_ISwapGripperPositions_380(message.gripper_drive_predefined_increments, refs) if message.HasField('gripper_drive_predefined_increments') else None),
     y_range_increments=(_read_Int32Range_14(message.y_range_increments, refs) if message.HasField('y_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapConfiguration.y_range_increments')),
     y_mm_per_increment=message.y_mm_per_increment,
     y_speed_range_increments=(_read_Int32Range_14(message.y_speed_range_increments, refs) if message.HasField('y_speed_range_increments') else wire.missing('pylabrobot.hamilton.star.server.v1.ISwapConfiguration.y_speed_range_increments')),
@@ -13430,20 +13466,20 @@ def _read_ISwapConfiguration_371(message: iswap_pb2.ISwapConfiguration, refs: wi
 
 def fill_iswap_configuration(message: iswap_pb2.ISwapConfiguration, value: iSWAPConfiguration) -> None:
   """A ISwapConfiguration from a iSWAPConfiguration."""
-  _fill_ISwapConfiguration_367(message, value)
+  _fill_ISwapConfiguration_373(message, value)
 
 
 def read_iswap_configuration(message: iswap_pb2.ISwapConfiguration) -> iSWAPConfiguration:
   """A ISwapConfiguration as a iSWAPConfiguration."""
-  return _read_ISwapConfiguration_371(message, {})
+  return _read_ISwapConfiguration_377(message, {})
 
 
-def _fill_CoreGrippersConfiguration_375(message: core_grippers_pb2.CoreGrippersConfiguration, value: CoreGrippersConfiguration) -> None:
+def _fill_CoreGrippersConfiguration_381(message: core_grippers_pb2.CoreGrippersConfiguration, value: CoreGrippersConfiguration) -> None:
   message.grip_strength_range.SetInParent()
   _fill_Int32Range_10(message.grip_strength_range, value.grip_strength_range)
 
 
-def _read_CoreGrippersConfiguration_376(message: core_grippers_pb2.CoreGrippersConfiguration, refs: wire.Refs) -> CoreGrippersConfiguration:
+def _read_CoreGrippersConfiguration_382(message: core_grippers_pb2.CoreGrippersConfiguration, refs: wire.Refs) -> CoreGrippersConfiguration:
   return CoreGrippersConfiguration(
     grip_strength_range=(_read_Int32Range_14(message.grip_strength_range, refs) if message.HasField('grip_strength_range') else wire.missing('pylabrobot.hamilton.star.server.v1.CoreGrippersConfiguration.grip_strength_range')),
   )
@@ -13451,25 +13487,25 @@ def _read_CoreGrippersConfiguration_376(message: core_grippers_pb2.CoreGrippersC
 
 def fill_core_grippers_configuration(message: core_grippers_pb2.CoreGrippersConfiguration, value: CoreGrippersConfiguration) -> None:
   """A CoreGrippersConfiguration from a CoreGrippersConfiguration."""
-  _fill_CoreGrippersConfiguration_375(message, value)
+  _fill_CoreGrippersConfiguration_381(message, value)
 
 
 def read_core_grippers_configuration(message: core_grippers_pb2.CoreGrippersConfiguration) -> CoreGrippersConfiguration:
   """A CoreGrippersConfiguration as a CoreGrippersConfiguration."""
-  return _read_CoreGrippersConfiguration_376(message, {})
+  return _read_CoreGrippersConfiguration_382(message, {})
 
 
-def _fill_StringInt32Map_386(message: types_pb2.StringInt32Map, value: Dict[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'], int]) -> None:
-  for key_387, item_388 in value.items():
-    message.entries[key_387] = int(item_388)
+def _fill_StringInt32Map_392(message: types_pb2.StringInt32Map, value: Dict[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'], int]) -> None:
+  for key_393, item_394 in value.items():
+    message.entries[key_393] = int(item_394)
 
 
-def _fill_StringInt32Map_389(message: types_pb2.StringInt32Map, value: Dict[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'], int]) -> None:
-  for key_390, item_391 in value.items():
-    message.entries[key_390] = int(item_391)
+def _fill_StringInt32Map_395(message: types_pb2.StringInt32Map, value: Dict[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'], int]) -> None:
+  for key_396, item_397 in value.items():
+    message.entries[key_396] = int(item_397)
 
 
-def _fill_AutoloadConfiguration_377(message: autoload_pb2.AutoloadConfiguration, value: AutoloadConfiguration) -> None:
+def _fill_AutoloadConfiguration_383(message: autoload_pb2.AutoloadConfiguration, value: AutoloadConfiguration) -> None:
   message.module = wire.text(value.module)
   if value.firmware_version is not None:
     message.firmware_version = wire.text(value.firmware_version)
@@ -13478,22 +13514,22 @@ def _fill_AutoloadConfiguration_377(message: autoload_pb2.AutoloadConfiguration,
     wire.fill_date(message.firmware_date, value.firmware_date)
   if value.autoload_type is not None:
     message.autoload_type = wire.text(value.autoload_type)
-  for key_378, item_379 in value.y_positions.items():
-    message.y_positions[key_378] = int(item_379)
-  for key_380, item_381 in value.z_positions.items():
-    message.z_positions[key_380] = int(item_381)
-  for key_382, item_383 in value.scanner_rotations.items():
-    message.scanner_rotations[key_382] = int(item_383)
-  for key_384, item_385 in value.barcode_reading_directions.items():
-    message.barcode_reading_directions[key_384] = int(item_385)
+  for key_384, item_385 in value.y_positions.items():
+    message.y_positions[key_384] = int(item_385)
+  for key_386, item_387 in value.z_positions.items():
+    message.z_positions[key_386] = int(item_387)
+  for key_388, item_389 in value.scanner_rotations.items():
+    message.scanner_rotations[key_388] = int(item_389)
+  for key_390, item_391 in value.barcode_reading_directions.items():
+    message.barcode_reading_directions[key_390] = int(item_391)
   if value.barcode_symbologies is not None:
     message.barcode_symbologies.SetInParent()
-    _fill_StringInt32Map_386(message.barcode_symbologies, value.barcode_symbologies)
+    _fill_StringInt32Map_392(message.barcode_symbologies, value.barcode_symbologies)
   if value.barcode_2d_symbologies is not None:
     message.barcode_2d_symbologies.SetInParent()
-    _fill_StringInt32Map_389(message.barcode_2d_symbologies, value.barcode_2d_symbologies)
-  for key_392, item_393 in value.scan_directions.items():
-    message.scan_directions[key_392] = int(item_393)
+    _fill_StringInt32Map_395(message.barcode_2d_symbologies, value.barcode_2d_symbologies)
+  for key_398, item_399 in value.scan_directions.items():
+    message.scan_directions[key_398] = int(item_399)
   message.x_drive_mm_per_increment = float(value.x_drive_mm_per_increment)
   if value.loading_indicators_installed is not None:
     message.loading_indicators_installed = bool(value.loading_indicators_installed)
@@ -13538,27 +13574,27 @@ def _fill_AutoloadConfiguration_377(message: autoload_pb2.AutoloadConfiguration,
   message.acceleration_ramp_increments_per_second_squared = int(value.acceleration_ramp_increments_per_second_squared)
 
 
-def _read_StringInt32Map_403(message: types_pb2.StringInt32Map, refs: wire.Refs) -> Dict[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'], int]:
-  return {cast(Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'], wire.one_of(key_404, ('ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'))): item_405 for key_404, item_405 in message.entries.items()}
+def _read_StringInt32Map_409(message: types_pb2.StringInt32Map, refs: wire.Refs) -> Dict[Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'], int]:
+  return {cast(Literal['ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'], wire.one_of(key_410, ('ISBT Standard', 'Code 128 (Subset B and C)', 'Code 39', 'Codebar', 'Code 2of5 Interleaved', 'UPC A/E', 'YESN/EAN 8', 'Code 93', 'ANY 1D'))): item_411 for key_410, item_411 in message.entries.items()}
 
 
-def _read_StringInt32Map_406(message: types_pb2.StringInt32Map, refs: wire.Refs) -> Dict[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'], int]:
-  return {cast(Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'], wire.one_of(key_407, ('Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'))): item_408 for key_407, item_408 in message.entries.items()}
+def _read_StringInt32Map_412(message: types_pb2.StringInt32Map, refs: wire.Refs) -> Dict[Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'], int]:
+  return {cast(Literal['Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'], wire.one_of(key_413, ('Data Matrix', 'QR Code', 'Maxi Code', 'Aztec', 'PDF 417', 'Micro PDF 417', 'GS1 DataBar', 'EAN/UCC Comp', 'ANY 2D'))): item_414 for key_413, item_414 in message.entries.items()}
 
 
-def _read_AutoloadConfiguration_394(message: autoload_pb2.AutoloadConfiguration, refs: wire.Refs) -> AutoloadConfiguration:
+def _read_AutoloadConfiguration_400(message: autoload_pb2.AutoloadConfiguration, refs: wire.Refs) -> AutoloadConfiguration:
   return AutoloadConfiguration(
     module=message.module,
     firmware_version=(message.firmware_version if message.HasField('firmware_version') else None),
     firmware_date=(wire.read_date(message.firmware_date, refs) if message.HasField('firmware_date') else None),
     autoload_type=(message.autoload_type if message.HasField('autoload_type') else None),
-    y_positions={cast(Literal['loading_tray', 'carrier_identification', 'deck'], wire.one_of(key_395, ('loading_tray', 'carrier_identification', 'deck'))): item_396 for key_395, item_396 in message.y_positions.items()},
-    z_positions={cast(Literal['below', 'above'], wire.one_of(key_397, ('below', 'above'))): item_398 for key_397, item_398 in message.z_positions.items()},
-    scanner_rotations={cast(Literal['vertical', 'horizontal', 'undefined'], wire.one_of(key_399, ('vertical', 'horizontal', 'undefined'))): item_400 for key_399, item_400 in message.scanner_rotations.items()},
-    barcode_reading_directions={cast(Literal['vertical', 'horizontal'], wire.one_of(key_401, ('vertical', 'horizontal'))): item_402 for key_401, item_402 in message.barcode_reading_directions.items()},
-    barcode_symbologies=(_read_StringInt32Map_403(message.barcode_symbologies, refs) if message.HasField('barcode_symbologies') else None),
-    barcode_2d_symbologies=(_read_StringInt32Map_406(message.barcode_2d_symbologies, refs) if message.HasField('barcode_2d_symbologies') else None),
-    scan_directions={cast(Literal['vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal'], wire.one_of(key_409, ('vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal'))): item_410 for key_409, item_410 in message.scan_directions.items()},
+    y_positions={cast(Literal['loading_tray', 'carrier_identification', 'deck'], wire.one_of(key_401, ('loading_tray', 'carrier_identification', 'deck'))): item_402 for key_401, item_402 in message.y_positions.items()},
+    z_positions={cast(Literal['below', 'above'], wire.one_of(key_403, ('below', 'above'))): item_404 for key_403, item_404 in message.z_positions.items()},
+    scanner_rotations={cast(Literal['vertical', 'horizontal', 'undefined'], wire.one_of(key_405, ('vertical', 'horizontal', 'undefined'))): item_406 for key_405, item_406 in message.scanner_rotations.items()},
+    barcode_reading_directions={cast(Literal['vertical', 'horizontal'], wire.one_of(key_407, ('vertical', 'horizontal'))): item_408 for key_407, item_408 in message.barcode_reading_directions.items()},
+    barcode_symbologies=(_read_StringInt32Map_409(message.barcode_symbologies, refs) if message.HasField('barcode_symbologies') else None),
+    barcode_2d_symbologies=(_read_StringInt32Map_412(message.barcode_2d_symbologies, refs) if message.HasField('barcode_2d_symbologies') else None),
+    scan_directions={cast(Literal['vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal'], wire.one_of(key_415, ('vertical', 'horizontal', 'omnidirectional', 'vertical and horizontal'))): item_416 for key_415, item_416 in message.scan_directions.items()},
     x_drive_mm_per_increment=message.x_drive_mm_per_increment,
     loading_indicators_installed=(message.loading_indicators_installed if message.HasField('loading_indicators_installed') else None),
     initialization_track=(message.initialization_track if message.HasField('initialization_track') else None),
@@ -13591,33 +13627,33 @@ def _read_AutoloadConfiguration_394(message: autoload_pb2.AutoloadConfiguration,
 
 def fill_autoload_configuration(message: autoload_pb2.AutoloadConfiguration, value: AutoloadConfiguration) -> None:
   """A AutoloadConfiguration from a AutoloadConfiguration."""
-  _fill_AutoloadConfiguration_377(message, value)
+  _fill_AutoloadConfiguration_383(message, value)
 
 
 def read_autoload_configuration(message: autoload_pb2.AutoloadConfiguration) -> AutoloadConfiguration:
   """A AutoloadConfiguration as a AutoloadConfiguration."""
-  return _read_AutoloadConfiguration_394(message, {})
+  return _read_AutoloadConfiguration_400(message, {})
 
 
-def _fill_FrontCoverConfiguration_411(message: front_cover_pb2.FrontCoverConfiguration, value: FrontCoverConfiguration) -> None:
-  for key_412, item_413 in value.position_codes.items():
-    message.position_codes[key_412] = int(item_413)
+def _fill_FrontCoverConfiguration_417(message: front_cover_pb2.FrontCoverConfiguration, value: FrontCoverConfiguration) -> None:
+  for key_418, item_419 in value.position_codes.items():
+    message.position_codes[key_418] = int(item_419)
 
 
-def _read_FrontCoverConfiguration_414(message: front_cover_pb2.FrontCoverConfiguration, refs: wire.Refs) -> FrontCoverConfiguration:
+def _read_FrontCoverConfiguration_420(message: front_cover_pb2.FrontCoverConfiguration, refs: wire.Refs) -> FrontCoverConfiguration:
   return FrontCoverConfiguration(
-    position_codes={cast(Literal['open', 'closed'], wire.one_of(key_415, ('open', 'closed'))): item_416 for key_415, item_416 in message.position_codes.items()},
+    position_codes={cast(Literal['open', 'closed'], wire.one_of(key_421, ('open', 'closed'))): item_422 for key_421, item_422 in message.position_codes.items()},
   )
 
 
 def fill_front_cover_configuration(message: front_cover_pb2.FrontCoverConfiguration, value: FrontCoverConfiguration) -> None:
   """A FrontCoverConfiguration from a FrontCoverConfiguration."""
-  _fill_FrontCoverConfiguration_411(message, value)
+  _fill_FrontCoverConfiguration_417(message, value)
 
 
 def read_front_cover_configuration(message: front_cover_pb2.FrontCoverConfiguration) -> FrontCoverConfiguration:
   """A FrontCoverConfiguration as a FrontCoverConfiguration."""
-  return _read_FrontCoverConfiguration_414(message, {})
+  return _read_FrontCoverConfiguration_420(message, {})
 
 
 @dataclasses.dataclass(frozen=True)

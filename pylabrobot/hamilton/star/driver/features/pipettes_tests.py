@@ -9,6 +9,7 @@ from pylabrobot.hamilton.protocol.text.framing import assemble_command
 from pylabrobot.hamilton.star.device import RECORDING_STAR
 from pylabrobot.hamilton.star.driver.errors import STARFirmwareError, check_fw_string_error
 from pylabrobot.hamilton.star.driver.features.pipettes import (
+  PipetteMeasurement,
   Pipettes,
   PipettesConfiguration,
   TADMCurve,
@@ -4754,3 +4755,68 @@ class TestDispenseInSimulation(_SimulatedPlateWithWater):
     self.assertEqual([await w.get_volume(pb.VIEW_COMMITTED) for w in self.wells[2:4]], [100.0, 0.0])
     tips = [await self._tip(channel) for channel in (0, 1)]
     self.assertEqual([await tip.get_volume(pb.VIEW_COMMITTED) for tip in tips], [0.0, 20.0])
+
+
+class TestMeasurementsInSimulation(_SimulatedPlateWithWater):
+  """What `aspirate` and `dispense` return: each container's surface found and TADM curve."""
+
+  def _record(self) -> List[str]:
+    sent: List[str] = []
+    log = self.driver._log_exchange
+
+    def recorded(written: str, read: Optional[str]) -> None:
+      sent.append(written)
+      log(written, read)
+
+    self.driver._log_exchange = recorded  # type: ignore[method-assign]
+    return sent
+
+  async def test_an_aspiration_without_tadm_or_a_search_measures_nothing(self):
+    measured = await self.pipettes.aspirate(self.wells[:2], [10.0, 10.0])
+    self.assertEqual(
+      measured,
+      [
+        PipetteMeasurement(channel=0, lld_mode=Pipettes.LLDMode.OFF, liquid_height=None, tadm=None),
+        PipetteMeasurement(channel=1, lld_mode=Pipettes.LLDMode.OFF, liquid_height=None, tadm=None),
+      ],
+    )
+
+  async def test_a_searched_aspiration_with_tadm_returns_the_surfaces_and_the_curves(self):
+    sent = self._record()
+    measured = await self.pipettes.aspirate(
+      self.wells[:2], [50.0, 20.0], lld_mode=Pipettes.LLDMode.CAPACITIVE, tadm=True
+    )
+    for well, volume, m in zip(self.wells, (150.0, 100.0), measured):
+      self.assertEqual(m.lld_mode, Pipettes.LLDMode.CAPACITIVE)
+      assert m.liquid_height is not None
+      self.assertAlmostEqual(m.liquid_height, await well.compute_height_from_volume(volume), 1)
+      assert m.tadm is not None
+      self.assertEqual(m.tadm.operation, "aspirate")
+      self.assertLess(min(m.tadm.pressures), 0)
+    self.assertEqual([m.channel for m in measured], [0, 1])
+    # After the search, the channels go into TADM mode with a fresh FIFO, the command records,
+    # and each curve is read back before the channels go back to LLD mode.
+    commands = [c[:4] for c in sent if c[:4] in ("P1ZL", "P1AF", "P1BG", "C0AS", "P1QL", "P1BH")]
+    self.assertEqual(commands, ["P1ZL", "P1AF", "P1BG", "C0AS", "P1QL", "P1BH", "P1AF"])
+    (aspiration,) = [c for c in sent if c.startswith("C0AS")]
+    self.assertIn("gj1gk2", aspiration)
+
+  async def test_a_dispense_with_tadm_returns_its_curves(self):
+    await self.pipettes.aspirate(self.wells[:2], [50.0, 20.0])
+    measured = await self.pipettes.dispense(self.wells[:2], [50.0, 20.0], tadm=True)
+    for m in measured:
+      self.assertIsNone(m.liquid_height)
+      assert m.tadm is not None
+      self.assertEqual(m.tadm.operation, "dispense")
+      self.assertGreater(max(m.tadm.pressures), 0)
+
+  async def test_a_failed_aspiration_carries_what_was_measured_before_it_failed(self):
+    # D1 holds nothing, so its search finds nothing; A1's has already found its surface.
+    with self.assertRaises(RuntimeError) as caught:
+      await self.pipettes.aspirate(
+        [self.wells[0], self.wells[3]], [10.0, 10.0], lld_mode=Pipettes.LLDMode.CAPACITIVE
+      )
+    measured = caught.exception.measurements  # type: ignore[attr-defined]
+    self.assertIsNotNone(measured[0].liquid_height)
+    self.assertIsNone(measured[1].liquid_height)
+    self.assertEqual([m.lld_mode for m in measured], [Pipettes.LLDMode.CAPACITIVE] * 2)

@@ -159,6 +159,24 @@ class TADMCurve(_message.Message):
     pressures: _containers.RepeatedScalarFieldContainer[int]
     def __init__(self, measurement_id: _Optional[str] = ..., operation: _Optional[_Union[_types_pb2.TADMOperation, str]] = ..., had_error: _Optional[bool] = ..., pressures: _Optional[_Iterable[int]] = ...) -> None: ...
 
+class PipetteMeasurement(_message.Message):
+    __slots__ = ("channel", "lld_mode", "liquid_height", "tadm")
+    CHANNEL_FIELD_NUMBER: _ClassVar[int]
+    LLD_MODE_FIELD_NUMBER: _ClassVar[int]
+    LIQUID_HEIGHT_FIELD_NUMBER: _ClassVar[int]
+    TADM_FIELD_NUMBER: _ClassVar[int]
+    channel: int
+    lld_mode: _types_pb2.LLDMode
+    liquid_height: float
+    tadm: TADMCurve
+    def __init__(self, channel: _Optional[int] = ..., lld_mode: _Optional[_Union[_types_pb2.LLDMode, str]] = ..., liquid_height: _Optional[float] = ..., tadm: _Optional[_Union[TADMCurve, _Mapping]] = ...) -> None: ...
+
+class PipetteMeasurements(_message.Message):
+    __slots__ = ("measurements",)
+    MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
+    measurements: _containers.RepeatedCompositeFieldContainer[PipetteMeasurement]
+    def __init__(self, measurements: _Optional[_Iterable[_Union[PipetteMeasurement, _Mapping]]] = ...) -> None: ...
+
 class PipetteConfiguration(_message.Message):
     __slots__ = ("channel_type", "head_type", "stop_disc_type", "pressure_adc", "firmware_version", "width")
     CHANNEL_TYPE_FIELD_NUMBER: _ClassVar[int]
@@ -1341,7 +1359,7 @@ class PipettesReadTadmCurveResponse(_message.Message):
     def __init__(self, curve: _Optional[_Union[TADMCurve, _Mapping]] = ...) -> None: ...
 
 class PipettesAspirateRequest(_message.Message):
-    __slots__ = ("containers", "volumes", "use_channels", "resource_offsets", "liquid_heights", "lld_mode_lldmode", "lld_mode_each", "flow_rates", "hamilton_liquid_classes", "jet", "blow_out", "piston_volumes", "search_speed", "approach_speed", "blow_out_air_volumes", "immersion_depths", "minimum_allowed_z_positions_during", "pre_wetting_volumes", "pre_mixes", "mix_positions_from_liquid_surface", "surface_following_distances", "auto_surface_following", "second_section_heights", "second_section_ratios", "settling_times", "swap_speeds", "clot_detection_heights", "pull_out_distances_transport_air", "transport_air_volumes", "limit_curve_indices", "minimum_traverse_height_start", "minimum_traverse_height_during", "minimum_traverse_height_end", "x_grouping_tolerance")
+    __slots__ = ("containers", "volumes", "use_channels", "resource_offsets", "liquid_heights", "lld_mode_lldmode", "lld_mode_each", "flow_rates", "hamilton_liquid_classes", "jet", "blow_out", "piston_volumes", "search_speed", "approach_speed", "blow_out_air_volumes", "immersion_depths", "minimum_allowed_z_positions_during", "pre_wetting_volumes", "pre_mixes", "mix_positions_from_liquid_surface", "surface_following_distances", "auto_surface_following", "second_section_heights", "second_section_ratios", "settling_times", "swap_speeds", "clot_detection_heights", "pull_out_distances_transport_air", "transport_air_volumes", "limit_curve_indices", "minimum_traverse_height_start", "minimum_traverse_height_during", "minimum_traverse_height_end", "x_grouping_tolerance", "tadm")
     CONTAINERS_FIELD_NUMBER: _ClassVar[int]
     VOLUMES_FIELD_NUMBER: _ClassVar[int]
     USE_CHANNELS_FIELD_NUMBER: _ClassVar[int]
@@ -1376,6 +1394,7 @@ class PipettesAspirateRequest(_message.Message):
     MINIMUM_TRAVERSE_HEIGHT_DURING_FIELD_NUMBER: _ClassVar[int]
     MINIMUM_TRAVERSE_HEIGHT_END_FIELD_NUMBER: _ClassVar[int]
     X_GROUPING_TOLERANCE_FIELD_NUMBER: _ClassVar[int]
+    TADM_FIELD_NUMBER: _ClassVar[int]
     containers: _containers.RepeatedCompositeFieldContainer[_types_pb2_1.ResourceRef]
     volumes: _types_pb2.DoubleList
     use_channels: _types_pb2.Int32List
@@ -1410,14 +1429,17 @@ class PipettesAspirateRequest(_message.Message):
     minimum_traverse_height_during: float
     minimum_traverse_height_end: float
     x_grouping_tolerance: float
-    def __init__(self, containers: _Optional[_Iterable[_Union[_types_pb2_1.ResourceRef, _Mapping]]] = ..., volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., use_channels: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., resource_offsets: _Optional[_Union[_types_pb2.Vec3List, _Mapping]] = ..., liquid_heights: _Optional[_Union[_types_pb2.OptionalDoubleList, _Mapping]] = ..., lld_mode_lldmode: _Optional[_Union[_types_pb2.LLDMode, str]] = ..., lld_mode_each: _Optional[_Union[_types_pb2.LLDModeList, _Mapping]] = ..., flow_rates: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., hamilton_liquid_classes: _Optional[_Union[_types_pb2.LiquidClassList, _Mapping]] = ..., jet: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., blow_out: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., piston_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., search_speed: _Optional[float] = ..., approach_speed: _Optional[float] = ..., blow_out_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., immersion_depths: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., minimum_allowed_z_positions_during: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pre_wetting_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pre_mixes: _Optional[_Union[_types_pb2.OptionalMixList, _Mapping]] = ..., mix_positions_from_liquid_surface: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., surface_following_distances: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., auto_surface_following: _Optional[bool] = ..., second_section_heights: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., second_section_ratios: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., settling_times: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., swap_speeds: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., clot_detection_heights: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pull_out_distances_transport_air: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., transport_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., limit_curve_indices: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., minimum_traverse_height_start: _Optional[float] = ..., minimum_traverse_height_during: _Optional[float] = ..., minimum_traverse_height_end: _Optional[float] = ..., x_grouping_tolerance: _Optional[float] = ...) -> None: ...
+    tadm: bool
+    def __init__(self, containers: _Optional[_Iterable[_Union[_types_pb2_1.ResourceRef, _Mapping]]] = ..., volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., use_channels: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., resource_offsets: _Optional[_Union[_types_pb2.Vec3List, _Mapping]] = ..., liquid_heights: _Optional[_Union[_types_pb2.OptionalDoubleList, _Mapping]] = ..., lld_mode_lldmode: _Optional[_Union[_types_pb2.LLDMode, str]] = ..., lld_mode_each: _Optional[_Union[_types_pb2.LLDModeList, _Mapping]] = ..., flow_rates: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., hamilton_liquid_classes: _Optional[_Union[_types_pb2.LiquidClassList, _Mapping]] = ..., jet: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., blow_out: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., piston_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., search_speed: _Optional[float] = ..., approach_speed: _Optional[float] = ..., blow_out_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., immersion_depths: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., minimum_allowed_z_positions_during: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pre_wetting_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pre_mixes: _Optional[_Union[_types_pb2.OptionalMixList, _Mapping]] = ..., mix_positions_from_liquid_surface: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., surface_following_distances: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., auto_surface_following: _Optional[bool] = ..., second_section_heights: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., second_section_ratios: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., settling_times: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., swap_speeds: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., clot_detection_heights: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pull_out_distances_transport_air: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., transport_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., limit_curve_indices: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., minimum_traverse_height_start: _Optional[float] = ..., minimum_traverse_height_during: _Optional[float] = ..., minimum_traverse_height_end: _Optional[float] = ..., x_grouping_tolerance: _Optional[float] = ..., tadm: _Optional[bool] = ...) -> None: ...
 
 class PipettesAspirateResponse(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("measurements",)
+    MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
+    measurements: _containers.RepeatedCompositeFieldContainer[PipetteMeasurement]
+    def __init__(self, measurements: _Optional[_Iterable[_Union[PipetteMeasurement, _Mapping]]] = ...) -> None: ...
 
 class PipettesDispenseRequest(_message.Message):
-    __slots__ = ("containers", "volumes", "use_channels", "resource_offsets", "liquid_heights", "lld_mode_lldmode", "lld_mode_each", "flow_rates", "hamilton_liquid_classes", "jet", "blow_out", "empty", "piston_volumes", "search_speed", "approach_speed", "side_touch_off_distance", "immersion_depths", "minimum_allowed_z_positions_during", "transport_air_volumes", "cut_off_speeds", "stop_back_volumes", "surface_following_distances", "auto_surface_following", "second_section_heights", "second_section_ratios", "blow_out_air_volumes", "post_mixes", "mix_positions_from_liquid_surface", "settling_times", "swap_speeds", "pull_out_distances_transport_air", "limit_curve_indices", "minimum_traverse_height_start", "minimum_traverse_height_during", "minimum_traverse_height_end", "x_grouping_tolerance")
+    __slots__ = ("containers", "volumes", "use_channels", "resource_offsets", "liquid_heights", "lld_mode_lldmode", "lld_mode_each", "flow_rates", "hamilton_liquid_classes", "jet", "blow_out", "empty", "piston_volumes", "search_speed", "approach_speed", "side_touch_off_distance", "immersion_depths", "minimum_allowed_z_positions_during", "transport_air_volumes", "cut_off_speeds", "stop_back_volumes", "surface_following_distances", "auto_surface_following", "second_section_heights", "second_section_ratios", "blow_out_air_volumes", "post_mixes", "mix_positions_from_liquid_surface", "settling_times", "swap_speeds", "pull_out_distances_transport_air", "limit_curve_indices", "minimum_traverse_height_start", "minimum_traverse_height_during", "minimum_traverse_height_end", "x_grouping_tolerance", "tadm")
     CONTAINERS_FIELD_NUMBER: _ClassVar[int]
     VOLUMES_FIELD_NUMBER: _ClassVar[int]
     USE_CHANNELS_FIELD_NUMBER: _ClassVar[int]
@@ -1454,6 +1476,7 @@ class PipettesDispenseRequest(_message.Message):
     MINIMUM_TRAVERSE_HEIGHT_DURING_FIELD_NUMBER: _ClassVar[int]
     MINIMUM_TRAVERSE_HEIGHT_END_FIELD_NUMBER: _ClassVar[int]
     X_GROUPING_TOLERANCE_FIELD_NUMBER: _ClassVar[int]
+    TADM_FIELD_NUMBER: _ClassVar[int]
     containers: _containers.RepeatedCompositeFieldContainer[_types_pb2_1.ResourceRef]
     volumes: _types_pb2.DoubleList
     use_channels: _types_pb2.Int32List
@@ -1490,11 +1513,14 @@ class PipettesDispenseRequest(_message.Message):
     minimum_traverse_height_during: float
     minimum_traverse_height_end: float
     x_grouping_tolerance: float
-    def __init__(self, containers: _Optional[_Iterable[_Union[_types_pb2_1.ResourceRef, _Mapping]]] = ..., volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., use_channels: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., resource_offsets: _Optional[_Union[_types_pb2.Vec3List, _Mapping]] = ..., liquid_heights: _Optional[_Union[_types_pb2.OptionalDoubleList, _Mapping]] = ..., lld_mode_lldmode: _Optional[_Union[_types_pb2.LLDMode, str]] = ..., lld_mode_each: _Optional[_Union[_types_pb2.LLDModeList, _Mapping]] = ..., flow_rates: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., hamilton_liquid_classes: _Optional[_Union[_types_pb2.LiquidClassList, _Mapping]] = ..., jet: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., blow_out: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., empty: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., piston_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., search_speed: _Optional[float] = ..., approach_speed: _Optional[float] = ..., side_touch_off_distance: _Optional[float] = ..., immersion_depths: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., minimum_allowed_z_positions_during: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., transport_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., cut_off_speeds: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., stop_back_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., surface_following_distances: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., auto_surface_following: _Optional[bool] = ..., second_section_heights: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., second_section_ratios: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., blow_out_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., post_mixes: _Optional[_Union[_types_pb2.OptionalMixList, _Mapping]] = ..., mix_positions_from_liquid_surface: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., settling_times: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., swap_speeds: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pull_out_distances_transport_air: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., limit_curve_indices: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., minimum_traverse_height_start: _Optional[float] = ..., minimum_traverse_height_during: _Optional[float] = ..., minimum_traverse_height_end: _Optional[float] = ..., x_grouping_tolerance: _Optional[float] = ...) -> None: ...
+    tadm: bool
+    def __init__(self, containers: _Optional[_Iterable[_Union[_types_pb2_1.ResourceRef, _Mapping]]] = ..., volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., use_channels: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., resource_offsets: _Optional[_Union[_types_pb2.Vec3List, _Mapping]] = ..., liquid_heights: _Optional[_Union[_types_pb2.OptionalDoubleList, _Mapping]] = ..., lld_mode_lldmode: _Optional[_Union[_types_pb2.LLDMode, str]] = ..., lld_mode_each: _Optional[_Union[_types_pb2.LLDModeList, _Mapping]] = ..., flow_rates: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., hamilton_liquid_classes: _Optional[_Union[_types_pb2.LiquidClassList, _Mapping]] = ..., jet: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., blow_out: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., empty: _Optional[_Union[_types_pb2.BoolList, _Mapping]] = ..., piston_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., search_speed: _Optional[float] = ..., approach_speed: _Optional[float] = ..., side_touch_off_distance: _Optional[float] = ..., immersion_depths: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., minimum_allowed_z_positions_during: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., transport_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., cut_off_speeds: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., stop_back_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., surface_following_distances: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., auto_surface_following: _Optional[bool] = ..., second_section_heights: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., second_section_ratios: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., blow_out_air_volumes: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., post_mixes: _Optional[_Union[_types_pb2.OptionalMixList, _Mapping]] = ..., mix_positions_from_liquid_surface: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., settling_times: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., swap_speeds: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., pull_out_distances_transport_air: _Optional[_Union[_types_pb2.DoubleList, _Mapping]] = ..., limit_curve_indices: _Optional[_Union[_types_pb2.Int32List, _Mapping]] = ..., minimum_traverse_height_start: _Optional[float] = ..., minimum_traverse_height_during: _Optional[float] = ..., minimum_traverse_height_end: _Optional[float] = ..., x_grouping_tolerance: _Optional[float] = ..., tadm: _Optional[bool] = ...) -> None: ...
 
 class PipettesDispenseResponse(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("measurements",)
+    MEASUREMENTS_FIELD_NUMBER: _ClassVar[int]
+    measurements: _containers.RepeatedCompositeFieldContainer[PipetteMeasurement]
+    def __init__(self, measurements: _Optional[_Iterable[_Union[PipetteMeasurement, _Mapping]]] = ...) -> None: ...
 
 class PipettesSettings(_message.Message):
     __slots__ = ("default_y_speed", "default_y_acceleration_level", "default_z_speed", "default_z_acceleration", "default_z_current_limit", "default_minimum_traverse_height", "default_x_grouping_tolerance")

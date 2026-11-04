@@ -389,6 +389,74 @@ class SimulatedPipettes(_Simulated, Pipettes):
       return {"if": [c.z_drive_mm_to_increments(detected), 0]}, source
     return None, source
 
+  def _record_simulated_tadm(self, command: str, **kwargs: Any) -> None:
+    """A curve for each involved channel a recording `C0 AS` or `DS` runs on, monitored.
+
+    The firmware records when the command asks (`gk` 2) and the channel's monitoring is on. The
+    curve is made up, but shaped as one is: still air, the pressure moving as the piston does
+    (down drawing, up pushing), in proportion to the volume, then settling back.
+    """
+    if str(kwargs.get("gk", 0)) != "2":
+      return
+    operation, field = (0, "av") if command == "AS" else (1, "dv")
+    used = 0
+    for index, involved in enumerate(kwargs["tm"]):
+      if not int(involved):
+        continue
+      volume = int(kwargs[field][used]) / 10
+      used += 1
+      if not self.device.tadm_monitoring.get(index):
+        continue
+      depth = round(40 + volume / 2) * (-1 if operation == 0 else 1)
+      stroke = 20 + round(volume / 5)
+      pressures = (
+        [0] * 10
+        + [round(depth * (i + 1) / 10) for i in range(10)]
+        + [depth] * stroke
+        + [round(depth * (9 - i) / 10) for i in range(10)]
+      )
+      self.device.tadm_fifo.setdefault(index, []).append((operation, pressures))
+
+  def _answer_tadm(self, channel: int, command: str, **kwargs: Any) -> Optional[Tuple[Any, str]]:
+    """What a channel's TADM commands answer, as the device's raw replies; None for others."""
+    d, cid = self.device, self.channel_id(channel)
+    if command == "AF":
+      return None
+    if command == "BG":
+      d.tadm_monitoring[channel] = True
+      return None
+    if command == "BH":
+      d.tadm_monitoring[channel] = False
+      return None
+    if command == "AN":
+      d.tadm_fifo[channel] = []
+      d.tadm_pointer[channel] = None
+      return None
+    if command == "QM":
+      fifo = d.tadm_fifo.get(channel) or []
+      d.tadm_pointer[channel] = fifo.pop(0) if fifo else None
+      more = d.tadm_pointer[channel] is not None
+      return f"{cid}QMid0000qm{int(more)}", f"channel {channel}'s TADM FIFO"
+    if command == "QL":
+      at = d.tadm_pointer.get(channel)
+      if at is None:
+        return (
+          f"{cid}QLid0000ql0000 0 0 0000 0000nr0000gd",
+          f"channel {channel}'s empty TADM pointer",
+        )
+      operation, pressures = at
+      return (
+        f"{cid}QLid0000ql{len(pressures):04} {operation} 0 0000 0000nr0000gd",
+        f"channel {channel}'s TADM curve",
+      )
+    if command == "QN":
+      at = d.tadm_pointer.get(channel)
+      pressures = [] if at is None else at[1]
+      start, count = int(kwargs["li"]), int(kwargs["ln"])
+      values = " ".join(f"{v:+05d}" for v in pressures[start : start + count])
+      return f"{cid}QNid0000qn{values}", f"channel {channel}'s TADM curve"
+    return None
+
   async def _answer_ztouch(self, channel: int, **kwargs: Any) -> Tuple[Any, str]:
     """What `ZH` answers: the stop disc where the tip met the floor of the container under it.
 
@@ -459,6 +527,8 @@ class SimulatedPipettes(_Simulated, Pipettes):
             if command == "TR" and index < len(mounted):
               mounted[index] = False
         return None
+      if command in ("AS", "DS"):
+        self._record_simulated_tadm(command, **kwargs)
       if command == "AS":
         # The command moves the channels itself: each involved one to its Y and, at the end, its
         # tip bottom to `te`. That is what the model has to show when the driver reads back.
@@ -512,6 +582,10 @@ class SimulatedPipettes(_Simulated, Pipettes):
     channel = self.channel_from_module(module)
     if channel is None or channel >= self.num_channels:
       return None
+
+    tadm = self._answer_tadm(channel, command, **kwargs)
+    if tadm is not None:
+      return tadm
 
     if command == "VY":
       width = self._declared_channel(channel).width
@@ -1973,6 +2047,12 @@ class STARSimulationDriver(STARDriver):
     self.last_lld_heights: Dict[int, float] = {}
     # Where each channel's piston stands, in uL: what its aspirations drew.
     self.dispensing_drive_uL: Dict[int, float] = {}
+    # TADM, by channel: whether its monitoring is on (`BG` to `BH`), the curves its strokes
+    # recorded and not yet read, oldest first, and the one `QM` last moved the pointer to. A
+    # curve is its operation (0 aspirate, 1 dispense) and its pressures.
+    self.tadm_monitoring: Dict[int, bool] = {}
+    self.tadm_fifo: Dict[int, List[Tuple[int, List[int]]]] = {}
+    self.tadm_pointer: Dict[int, Optional[Tuple[int, List[int]]]] = {}
     # The transport air each channel's tip holds, in uL: the next dispense pushes it out first.
     self.transport_air_uL: Dict[int, float] = {}
     # Where the 96-head's stop disc last detected liquid, in mm on the deck; 0.0 until one does.

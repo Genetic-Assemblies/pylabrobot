@@ -219,8 +219,7 @@ class PipettesHandlers:
     async def run() -> pipettes_pb2.PipettesAspirateResponse:
       target = self._served.pipettes()
       refs = await self._served.refs(request)
-      await codec.call_pipettes_aspirate(target, request, refs)
-      return codec.encode_pipettes_aspirate_response(None)
+      return codec.encode_pipettes_aspirate_response(await codec.call_pipettes_aspirate(target, request, refs))
 
     return await self._served.run(ctx, run)
 
@@ -272,8 +271,7 @@ class PipettesHandlers:
     async def run() -> pipettes_pb2.PipettesDispenseResponse:
       target = self._served.pipettes()
       refs = await self._served.refs(request)
-      await codec.call_pipettes_dispense(target, request, refs)
-      return codec.encode_pipettes_dispense_response(None)
+      return codec.encode_pipettes_dispense_response(await codec.call_pipettes_dispense(target, request, refs))
 
     return await self._served.run(ctx, run)
 

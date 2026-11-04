@@ -387,6 +387,25 @@ class TADMCurve:
   pressures: List[int]
 
 
+@dataclass(frozen=True)
+class PipetteMeasurement:
+  """What a channel measured in one container while aspirating from or dispensing into it.
+
+  Attributes:
+    channel: which channel, 0-indexed from the back.
+    lld_mode: how it searched for the liquid's surface first; OFF when it did not.
+    liquid_height: the surface it found, above the container's cavity bottom, in mm, as found:
+      below 0 where the container sits lower than the model. None when it did not search, or
+      found no liquid.
+    tadm: the pressure curve of its stroke, when TADM was asked for and one was read back.
+  """
+
+  channel: int
+  lld_mode: LLDMode
+  liquid_height: Optional[float]
+  tadm: Optional[TADMCurve]
+
+
 def _get_channels_that_met_no_tip(error: Exception) -> Optional[List[int]]:
   """The channels a pick-up's error says met no tip; None when anything failed otherwise.
 
@@ -5516,6 +5535,50 @@ class Pipettes:
       pressures.extend(values)
     return TADMCurve(measurement_id, operation, had_error, pressures)
 
+  async def _start_recording_tadm(self, channels: Sequence[int]) -> None:
+    """Have each channel record the pressure curve of its next strokes, into an emptied FIFO.
+
+    TADM mode on, the default limit curve loaded and monitoring begun, keeping every curve. The
+    command that runs next must ask for recording too (`gj` 1, `gk` 2).
+    """
+    for channel in channels:
+      await self.set_tadm_mode(channel, True)
+      await self.reset_tadm_limit_curves(channel)
+      await self.clear_tadm_fifo(channel)
+      await self.start_tadm_monitoring(
+        channel, enforce_limit_curve_control=True, storage_level="all"
+      )
+
+  async def _stop_recording_tadm(
+    self, channels: Sequence[int], operation: Literal["aspirate", "dispense"]
+  ) -> Dict[int, Optional[TADMCurve]]:
+    """Read back each channel's curve of `operation`, end its monitoring, and put it back in LLD
+    mode.
+
+    The FIFO is read to its end; a stroke of another kind (a mix's) is passed over for one of
+    `operation`. A channel whose read fails gets None, with a warning: this runs after a command
+    that may itself have failed, and must not hide why.
+    """
+    curves: Dict[int, Optional[TADMCurve]] = {}
+    for channel in channels:
+      kept: Optional[TADMCurve] = None
+      try:
+        while True:
+          curve = await self.read_tadm_curve(channel)
+          if curve is None:
+            break
+          if kept is None or (kept.operation != operation and curve.operation == operation):
+            kept = curve
+      except Exception as error:
+        logger.warning("could not read channel %d's TADM curve: %s", channel, error)
+      curves[channel] = kept
+      try:
+        await self.stop_tadm_monitoring(channel)
+        await self.set_tadm_mode(channel, False)
+      except Exception as error:
+        logger.warning("could not end channel %d's TADM monitoring: %s", channel, error)
+    return curves
+
   # ----------------------------------------
   # Liquid handling
   # ----------------------------------------
@@ -5721,6 +5784,7 @@ class Pipettes:
     surfaces: List[float],
     sent_floors: List[float],
     given_floors: Optional[Sequence[float]],
+    found_heights: Optional[List[Optional[float]]] = None,
   ) -> None:
     """Search for the liquid under the batch's searched jobs, and put what is found into the model.
 
@@ -5741,6 +5805,7 @@ class Pipettes:
       sent_floors: per job, on the deck in mm; written with a surface found below the modelled
         cavity bottom, unless the caller gave a floor.
       given_floors: the floors the caller gave, per job; None when none.
+      found_heights: per job; written with each surface found, above the cavity bottom.
 
     Raises:
       RuntimeError: No liquid found.
@@ -5768,6 +5833,8 @@ class Pipettes:
         raise RuntimeError(f"channel {channel} found no liquid in {containers[job].name}")
       surfaces[job] = height
       above_bottom = round(height - z_cavity_bottom[job], 2)
+      if found_heights is not None:
+        found_heights[job] = above_bottom
       if above_bottom < 0:
         # The plate sits lower than the model: the floor sent follows the surface found, or the
         # firmware would hold the tip above it.
@@ -6079,6 +6146,7 @@ class Pipettes:
     transport_air_volumes: Optional[List[float]] = None,
     limit_curve_indices: Optional[List[int]] = None,
     minimum_traverse_height_end: Optional[float] = None,
+    record_tadm: bool = False,
   ) -> None:
     """Aspirate at each place given, the channels together, in one `C0 AS`.
 
@@ -6121,6 +6189,8 @@ class Pipettes:
       limit_curve_indices: TADM limit curve, 0 for none. 0 when None.
       minimum_traverse_height_end: tip bottom height at the end. `default_minimum_traverse_height`
         when None.
+      record_tadm: record each channel's pressure curve (`gj` 1, `gk` 2), into the FIFO
+        `_start_recording_tadm` readied. Off, as legacy sent it, when False.
 
     Raises:
       ValueError: A list not one entry per channel, a value out of the firmware's range, an
@@ -6369,8 +6439,8 @@ class Pipettes:
         mix_speed=[tenths(v) for v in mix_speed],
         mix_surface_following_distance=[tenths(v) for v in mix_following],
         limit_curve_index=list(limit_curve),
-        tadm_algorithm=False,
-        recording_mode=0,
+        tadm_algorithm=record_tadm,
+        recording_mode=2 if record_tadm else 0,
         use_2nd_section_aspiration=[False] * n,
         retract_height_over_2nd_section_to_empty_tip=[0] * n,
         dispensation_speed_during_emptying_tip=[500] * n,
@@ -6551,11 +6621,12 @@ class Pipettes:
     pull_out_distances_transport_air: Optional[Sequence[float]] = None,
     transport_air_volumes: Optional[Sequence[float]] = None,
     limit_curve_indices: Optional[Sequence[int]] = None,
+    tadm: bool = False,
     minimum_traverse_height_start: Optional[float] = None,
     minimum_traverse_height_during: Optional[float] = None,
     minimum_traverse_height_end: Optional[float] = None,
     x_grouping_tolerance: Optional[float] = None,
-  ) -> None:
+  ) -> List[PipetteMeasurement]:
     """Draw liquid from each container with a channel's tip.
 
     Batched as `probe_liquid_heights`, one `C0 AS` per batch. Every height in the command is
@@ -6623,6 +6694,9 @@ class Pipettes:
         10.0 when None.
       transport_air_volumes: air drawn after the liquid, in uL. The class's, else 0.0, when None.
       limit_curve_indices: TADM limit curve, 0 for none, per container. 0 when None.
+      tadm: record each channel's pressure curve over its draw, and return it. Each batch's
+        channels are put in TADM mode for their command, after their search, and back in LLD
+        mode after. Off when False.
       minimum_traverse_height_start: raise of every low channel before the first batch, in mm.
         `default_minimum_traverse_height` when None.
       minimum_traverse_height_during: the same between batches, and each batch's end height.
@@ -6631,6 +6705,11 @@ class Pipettes:
         when None.
       x_grouping_tolerance: X distance within which containers share a batch, in mm.
         `default_x_grouping_tolerance` when None.
+
+    Returns:
+      What each container's channel measured, one per container in order: the surface its search
+        found, and its TADM curve. A container whose batch never ran has neither. When the call
+        fails, the error raised carries the same as its `measurements`.
 
     Raises:
       ValueError: An argument out of range, lists that do not match, both or neither of `volumes`
@@ -6674,6 +6753,20 @@ class Pipettes:
     check_volume_arguments(volumes, piston_volumes, hamilton_liquid_classes, "drawn")
 
     channel_of = self._get_channel_of_each_container(n, use_channels)
+    found_heights: List[Optional[float]] = [None] * n
+    curves: List[Optional[TADMCurve]] = [None] * n
+
+    def measured() -> List[PipetteMeasurement]:
+      return [
+        PipetteMeasurement(
+          channel=channel_of[job],
+          lld_mode=modes[job] if job in searched else self.LLDMode.OFF,
+          liquid_height=found_heights[job],
+          tadm=curves[job],
+        )
+        for job in range(n)
+      ]
+
     presence, tips = await self._check_channels_before_pipetting(
       channel_of, touched, "an aspiration"
     )
@@ -6832,6 +6925,7 @@ class Pipettes:
         surfaces=surfaces,
         sent_floors=sent_floors,
         given_floors=given_floors,
+        found_heights=found_heights,
       )
 
     async def send(batch: ChannelBatch) -> None:
@@ -6873,21 +6967,30 @@ class Pipettes:
         heights_now,
         [surfaces[job] - mix_depth[job] - sent_floors[job] for job in jobs],
       )
-      await self._aspirate_in_one_move(
-        batch.channels,
-        [
-          Coordinate(batch.x_position, batch.y_positions[ch], surfaces[job])
-          for ch, job in zip(batch.channels, jobs)
-        ],
-        [searches[job] for job in jobs],
-        [sent_floors[job] for job in jobs],
-        [drawn[job] for job in jobs],
-        pre_mixes=batch_mixes,
-        surface_following_distances=batch_following,
-        minimum_traverse_height_end=end if last else during,
-        **kwargs_to_start_from_current_positions,
-        **per_channel_settings,
-      )
+      if tadm:
+        await self._start_recording_tadm(batch.channels)
+      try:
+        await self._aspirate_in_one_move(
+          batch.channels,
+          [
+            Coordinate(batch.x_position, batch.y_positions[ch], surfaces[job])
+            for ch, job in zip(batch.channels, jobs)
+          ],
+          [searches[job] for job in jobs],
+          [sent_floors[job] for job in jobs],
+          [drawn[job] for job in jobs],
+          pre_mixes=batch_mixes,
+          surface_following_distances=batch_following,
+          minimum_traverse_height_end=end if last else during,
+          **kwargs_to_start_from_current_positions,
+          **per_channel_settings,
+          record_tadm=tadm,
+        )
+      finally:
+        if tadm:
+          read = await self._stop_recording_tadm(batch.channels, "aspirate")
+          for ch, job in zip(batch.channels, jobs):
+            curves[job] = read.get(ch)
 
     def piston_after(standing: float, job: int) -> float:
       return float(round(standing + drawn[job] + air_in_command[job] + transport_air[job], 1))
@@ -6917,7 +7020,13 @@ class Pipettes:
         held = self._held_transport_air.get(channel, 0.0)
         self._held_transport_air[channel] = round(held + transport_air[job], 1)
 
-    await self._execute_batched(run, batches, during)
+    try:
+      await self._execute_batched(run, batches, during)
+    except BaseException as error:
+      # What was measured before the failure is what explains it: it goes with the error.
+      error.measurements = measured()  # type: ignore[attr-defined]
+      raise
+    return measured()
 
   # -- dispensing ---------------------------------------------------------------------------------
 
@@ -7051,6 +7160,7 @@ class Pipettes:
     pull_out_distances_transport_air: Optional[List[float]] = None,
     limit_curve_indices: Optional[List[int]] = None,
     minimum_traverse_height_end: Optional[float] = None,
+    record_tadm: bool = False,
   ) -> None:
     """Dispense at each place given, the channels together, in one `C0 DS`.
 
@@ -7095,6 +7205,8 @@ class Pipettes:
       limit_curve_indices: TADM limit curve, 0 for none. 0 when None.
       minimum_traverse_height_end: tip bottom height at the end. `default_minimum_traverse_height`
         when None.
+      record_tadm: record each channel's pressure curve (`gj` 1, `gk` 2), into the FIFO
+        `_start_recording_tadm` readied. Off, as legacy sent it, when False.
 
     Raises:
       ValueError: A list not one entry per channel, a value out of the firmware's range, an
@@ -7335,8 +7447,8 @@ class Pipettes:
         mix_speed=[tenths(v) for v in mix_speed],
         mix_surface_following_distance=[tenths(v) for v in mix_following],
         limit_curve_index=list(limit_curve),
-        tadm_algorithm=False,
-        recording_mode=0,
+        tadm_algorithm=record_tadm,
+        recording_mode=2 if record_tadm else 0,
       )
     finally:
       await self._record_after_command(use_channels)
@@ -7375,11 +7487,12 @@ class Pipettes:
     swap_speeds: Optional[Sequence[float]] = None,
     pull_out_distances_transport_air: Optional[Sequence[float]] = None,
     limit_curve_indices: Optional[Sequence[int]] = None,
+    tadm: bool = False,
     minimum_traverse_height_start: Optional[float] = None,
     minimum_traverse_height_during: Optional[float] = None,
     minimum_traverse_height_end: Optional[float] = None,
     x_grouping_tolerance: Optional[float] = None,
-  ) -> None:
+  ) -> List[PipetteMeasurement]:
     """Dispense liquid into each container from a channel's tip.
 
     Batched as `aspirate`, one `C0 DS` per batch. Every height in the command is what is given,
@@ -7444,6 +7557,9 @@ class Pipettes:
       pull_out_distances_transport_air: rise before drawing transport air, in mm, per container.
         10.0 when None.
       limit_curve_indices: TADM limit curve, 0 for none, per container. 0 when None.
+      tadm: record each channel's pressure curve over its dispense, and return it. Each batch's
+        channels are put in TADM mode for their command, after their search, and back in LLD
+        mode after. Off when False.
       minimum_traverse_height_start: raise of every low channel before the first batch, in mm.
         `default_minimum_traverse_height` when None.
       minimum_traverse_height_during: the same between batches, and each batch's end height.
@@ -7452,6 +7568,11 @@ class Pipettes:
         when None.
       x_grouping_tolerance: X distance within which containers share a batch, in mm.
         `default_x_grouping_tolerance` when None.
+
+    Returns:
+      What each container's channel measured, one per container in order: the surface its search
+        found, and its TADM curve. A container whose batch never ran has neither. When the call
+        fails, the error raised carries the same as its `measurements`.
 
     Raises:
       ValueError: An argument out of range, lists that do not match, both or neither of `volumes`
@@ -7496,6 +7617,20 @@ class Pipettes:
     check_volume_arguments(volumes, piston_volumes, hamilton_liquid_classes, "pushed out")
 
     channel_of = self._get_channel_of_each_container(n, use_channels)
+    found_heights: List[Optional[float]] = [None] * n
+    curves: List[Optional[TADMCurve]] = [None] * n
+
+    def measured() -> List[PipetteMeasurement]:
+      return [
+        PipetteMeasurement(
+          channel=channel_of[job],
+          lld_mode=modes[job] if job in searched else self.LLDMode.OFF,
+          liquid_height=found_heights[job],
+          tadm=curves[job],
+        )
+        for job in range(n)
+      ]
+
     presence, tips = await self._check_channels_before_pipetting(channel_of, touched, "a dispense")
     if touched:
       logger.warning(
@@ -7628,6 +7763,7 @@ class Pipettes:
         surfaces=surfaces,
         sent_floors=sent_floors,
         given_floors=given_floors,
+        found_heights=found_heights,
       )
       # The search may have found more liquid than the model had: the room is checked again.
       found = [(ch, job) for ch, job in zip(batch.channels, batch.indices) if job in searched]
@@ -7683,25 +7819,34 @@ class Pipettes:
           surfaces[job] + rise - mix_depth[job] - sent_floors[job] for rise, job in zip(rises, jobs)
         ],
       )
-      await self._dispense_in_one_move(
-        batch.channels,
-        [
-          Coordinate(batch.x_position, batch.y_positions[ch], surfaces[job])
-          for ch, job in zip(batch.channels, jobs)
-        ],
-        [searches[job] for job in jobs],
-        [sent_floors[job] for job in jobs],
-        [pushed[job] for job in jobs],
-        jets=[jets[job] for job in jobs],
-        blow_outs=[blow_outs[job] for job in jobs],
-        empties=[empties[job] for job in jobs],
-        side_touch_off_distance=side_touch_off_distance,
-        post_mixes=batch_mixes,
-        surface_following_distances=batch_following,
-        minimum_traverse_height_end=end if last else during,
-        **kwargs_to_start_from_current_positions,
-        **per_channel_settings,
-      )
+      if tadm:
+        await self._start_recording_tadm(batch.channels)
+      try:
+        await self._dispense_in_one_move(
+          batch.channels,
+          [
+            Coordinate(batch.x_position, batch.y_positions[ch], surfaces[job])
+            for ch, job in zip(batch.channels, jobs)
+          ],
+          [searches[job] for job in jobs],
+          [sent_floors[job] for job in jobs],
+          [pushed[job] for job in jobs],
+          jets=[jets[job] for job in jobs],
+          blow_outs=[blow_outs[job] for job in jobs],
+          empties=[empties[job] for job in jobs],
+          side_touch_off_distance=side_touch_off_distance,
+          post_mixes=batch_mixes,
+          surface_following_distances=batch_following,
+          minimum_traverse_height_end=end if last else during,
+          **kwargs_to_start_from_current_positions,
+          **per_channel_settings,
+          record_tadm=tadm,
+        )
+      finally:
+        if tadm:
+          read = await self._stop_recording_tadm(batch.channels, "dispense")
+          for ch, job in zip(batch.channels, jobs):
+            curves[job] = read.get(ch)
 
     def piston_after(standing: float, job: int) -> float:
       left = 0.0 if dispensing_modes[job] == 4 else max(standing - travels[job], 0.0)
@@ -7731,4 +7876,10 @@ class Pipettes:
       for channel, job in zip(batch.channels, batch.indices):
         self._held_transport_air[channel] = transport_air[job]
 
-    await self._execute_batched(run, batches, during)
+    try:
+      await self._execute_batched(run, batches, during)
+    except BaseException as error:
+      # What was measured before the failure is what explains it: it goes with the error.
+      error.measurements = measured()  # type: ignore[attr-defined]
+      raise
+    return measured()

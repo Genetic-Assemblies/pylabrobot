@@ -1052,3 +1052,23 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
     await server.commands.get_server_info(spb.GetServerInfoRequest())
     self.assertEqual(seen, ["Bearer t", "Bearer t"])
     await server.close()
+
+  async def test_a_header_given_as_a_function_is_read_as_each_call_is_made(self):
+    seen: List[Optional[str]] = []
+
+    class Recording(MemoryStore):
+      async def get_server_info(
+        self, request: spb.GetServerInfoRequest, ctx: RequestContext
+      ) -> spb.ServerInfo:
+        seen.append(ctx.request_headers.get("gatc-call"))
+        return await super().get_server_info(request, ctx)
+
+    store = Recording()
+    http = Client(transport=ASGITransport(asgi_app(store)))
+    now: List[Optional[str]] = ["7"]
+    server = ResourceServer("http://in-process", http, store, {"gatc-call": lambda: now[0]})
+    await server.commands.get_server_info(spb.GetServerInfoRequest())
+    now[0] = None
+    await server.commands.get_server_info(spb.GetServerInfoRequest())
+    self.assertEqual(seen, ["7", None])
+    await server.close()

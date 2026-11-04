@@ -5383,7 +5383,56 @@
         "P7RZ",
         "P8RZ"
       ],
-      "result": null,
+      "result": [
+        {
+          "channel": 0,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 1,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 2,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 3,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 4,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 5,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 6,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 7,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        }
+      ],
       "resources": [
         {
           "name": "plate_well_A1",
@@ -5755,7 +5804,56 @@
         "P7RZ",
         "P8RZ"
       ],
-      "result": null,
+      "result": [
+        {
+          "channel": 0,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 1,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 2,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 3,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 4,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 5,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 6,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 7,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        }
+      ],
       "resources": [
         {
           "name": "plate_well_A2",
@@ -6936,7 +7034,32 @@
         "P3RZ",
         "P4RZ"
       ],
-      "result": null,
+      "result": [
+        {
+          "channel": 0,
+          "lld_mode": "CAPACITIVE",
+          "liquid_height": 6.15,
+          "tadm": null
+        },
+        {
+          "channel": 1,
+          "lld_mode": "CAPACITIVE",
+          "liquid_height": 6.15,
+          "tadm": null
+        },
+        {
+          "channel": 2,
+          "lld_mode": "CAPACITIVE",
+          "liquid_height": 6.15,
+          "tadm": null
+        },
+        {
+          "channel": 3,
+          "lld_mode": "CAPACITIVE",
+          "liquid_height": 6.15,
+          "tadm": null
+        }
+      ],
       "resources": [
         {
           "name": "plate_well_A3",
@@ -7144,7 +7267,32 @@
         "P3RZ",
         "P4RZ"
       ],
-      "result": null,
+      "result": [
+        {
+          "channel": 0,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 1,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 2,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        },
+        {
+          "channel": 3,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        }
+      ],
       "resources": [
         {
           "name": "plate_well_A4",

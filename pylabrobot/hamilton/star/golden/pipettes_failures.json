@@ -5389,7 +5389,14 @@
         "C0RY",
         "P4RZ"
       ],
-      "result": null,
+      "result": [
+        {
+          "channel": 3,
+          "lld_mode": "OFF",
+          "liquid_height": null,
+          "tadm": null
+        }
+      ],
       "resources": [
         {
           "name": "plate_well_C1",

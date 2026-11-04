@@ -15,7 +15,12 @@ from pyqwest import Client
 
 from pylabrobot.hamilton.star import STAR, STARlet
 from pylabrobot.hamilton.star.driver.errors import STARFirmwareError, check_fw_string_error
-from pylabrobot.hamilton.star.driver.features.pipettes import Pipettes
+from pylabrobot.hamilton.star.driver.features.pipettes import (
+  PipetteMeasurement,
+  Pipettes,
+  TADMCurve,
+)
+from pylabrobot.hamilton.star.driver.lld_mode import LLDMode
 from pylabrobot.hamilton.star.server import client, generate
 from pylabrobot.hamilton.star.server.client import STARServer, remote_device
 from pylabrobot.hamilton.star.server.errors import from_connect_error, to_connect_error
@@ -245,3 +250,25 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
     finally:
       served.cancel()
       await asyncio.gather(served, return_exceptions=True)
+
+
+class MeasurementErrorTests(unittest.TestCase):
+  def test_what_a_failed_aspiration_measured_comes_back_with_its_error(self):
+    error = RuntimeError("channel 1 found no liquid in plate_D1")
+    error.measurements = [  # type: ignore[attr-defined]
+      PipetteMeasurement(channel=0, lld_mode=LLDMode.CAPACITIVE, liquid_height=7.25, tadm=None),
+      PipetteMeasurement(
+        channel=1,
+        lld_mode=LLDMode.CAPACITIVE,
+        liquid_height=None,
+        tadm=TADMCurve("0001", "aspirate", True, [0, -40, -80, -40]),
+      ),
+    ]
+    raised = from_connect_error(to_connect_error(error))
+    assert raised is not None
+    self.assertIsInstance(raised, RuntimeError)
+    self.assertEqual(raised.measurements, error.measurements)  # type: ignore[attr-defined]
+
+  def test_an_error_without_measurements_carries_none(self):
+    raised = from_connect_error(to_connect_error(ValueError("no")))
+    self.assertFalse(hasattr(raised, "measurements"))

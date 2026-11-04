@@ -23,6 +23,8 @@ from pylabrobot.resources.errors import (
 from pylabrobot.resources.server.errors import ServerError
 
 ERROR_TYPE = "pylabrobot.hamilton.star.server.v1.Error"
+# What an aspirate or a dispense measured before it failed, beside the `Error`.
+MEASUREMENTS_TYPE = "pylabrobot.hamilton.star.server.v1.PipetteMeasurements"
 
 # Each kind and the class it is, the subclasses ahead of what they derive from.
 _KINDS: List[Tuple[Type[BaseException], int, Code]] = [
@@ -145,14 +147,44 @@ def to_connect_error(error: BaseException) -> ConnectError:
   if isinstance(error, ServerError):
     detail.problem = error.problem
     detail.resource_name = error.resource_name
-  any_detail = AnyMessage(
-    type_url=f"type.googleapis.com/{ERROR_TYPE}", value=detail.SerializeToString()
-  )
-  return ConnectError(code, str(error), [any_detail])
+  details = [
+    AnyMessage(type_url=f"type.googleapis.com/{ERROR_TYPE}", value=detail.SerializeToString())
+  ]
+  measurements = getattr(error, "measurements", None)
+  if measurements:
+    from pylabrobot.hamilton.star.server import generated_codec as codec
+    from pylabrobot.hamilton.star.server.v1 import pipettes_pb2
+
+    measured = pipettes_pb2.PipetteMeasurements(
+      measurements=codec.encode_pipettes_aspirate_response(measurements).measurements
+    )
+    details.append(
+      AnyMessage(
+        type_url=f"type.googleapis.com/{MEASUREMENTS_TYPE}", value=measured.SerializeToString()
+      )
+    )
+  return ConnectError(code, str(error), details)
 
 
 def from_connect_error(error: ConnectError) -> Optional[BaseException]:
-  """The error a call raised, from the Connect error it came as; None when it carries none."""
+  """The error a call raised, from the Connect error it came as; None when it carries none. What
+  an aspirate or a dispense measured before failing is its `measurements`, as raised."""
+  raised = _raised(error)
+  if raised is None:
+    return None
+  for item in error.details:
+    if item.type_name == MEASUREMENTS_TYPE:
+      from pylabrobot.hamilton.star.server import generated_codec as codec
+      from pylabrobot.hamilton.star.server.v1 import pipettes_pb2
+
+      measured = pipettes_pb2.PipetteMeasurements.FromString(item.message_bytes)
+      raised.measurements = codec.decode_pipettes_aspirate_response(  # type: ignore[attr-defined]
+        pipettes_pb2.PipettesAspirateResponse(measurements=measured.measurements)
+      )
+  return raised
+
+
+def _raised(error: ConnectError) -> Optional[BaseException]:
   for item in error.details:
     if item.type_name != ERROR_TYPE:
       continue

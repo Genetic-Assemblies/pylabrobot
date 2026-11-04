@@ -69,11 +69,22 @@ class _Refusals:
       raise server_error(error) from error
 
 
-class _Headers:
-  """Sends the same headers with every call a client makes: its credentials."""
+# A header's value, or a function giving it as each call is made (None: not sent then).
+HeaderValue = Union[str, Callable[[], Optional[str]]]
 
-  def __init__(self, headers: Mapping[str, str]):
+
+class _Headers:
+  """Sends headers with every call a client makes: its credentials, and anything read as the call
+  is made."""
+
+  def __init__(self, headers: Mapping[str, HeaderValue]):
     self.headers = dict(headers)
+
+  def _put(self, ctx: RequestContext) -> None:
+    for name, value in self.headers.items():
+      now = value() if callable(value) else value
+      if now is not None:
+        ctx.request_headers[name] = now
 
   async def intercept_unary(
     self,
@@ -82,7 +93,7 @@ class _Headers:
     ctx: RequestContext,
     /,
   ) -> RES:
-    ctx.request_headers.update(self.headers)
+    self._put(ctx)
     return await call_next(request, ctx)
 
   async def intercept_server_stream(
@@ -92,7 +103,7 @@ class _Headers:
     ctx: RequestContext,
     /,
   ) -> AsyncIterator[RES]:
-    ctx.request_headers.update(self.headers)
+    self._put(ctx)
     async for response in call_next(request, ctx):
       yield response
 
@@ -115,7 +126,7 @@ class ResourceServer:
     address: str,
     http: Client,
     memory: Optional[MemoryStore] = None,
-    headers: Optional[Mapping[str, str]] = None,
+    headers: Optional[Mapping[str, HeaderValue]] = None,
   ):
     interceptors: List[Any] = [_Refusals()]
     if headers:
@@ -135,13 +146,14 @@ class ResourceServer:
     return cls(_IN_PROCESS, http, memory)
 
   @classmethod
-  def connect(cls, url: str, headers: Optional[Mapping[str, str]] = None) -> ResourceServer:
+  def connect(cls, url: str, headers: Optional[Mapping[str, HeaderValue]] = None) -> ResourceServer:
     """A store served at `url`, "http://127.0.0.1:8080" say.
 
     Args:
       headers: Sent with every call: the credentials the backend asks for,
         `{"authorization": "Bearer ..."}` say. What a connection may see or change is the
-        backend's to decide.
+        backend's to decide. A value may be a function, called as each call is made, its None
+        not sent: what a server says about the request it is handling, say.
     """
     return cls(url, Client(), headers=headers)
 

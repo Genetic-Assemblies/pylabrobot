@@ -82,6 +82,25 @@ message TADMCurve {
   repeated int32 pressures = 4;
 }
 
+// What a channel measured in one container while aspirating from or dispensing into it.
+message PipetteMeasurement {
+  // Which channel, 0-indexed from the back.
+  int32 channel = 1;
+  // How it searched for the liquid's surface first; OFF when it did not.
+  LLDMode lld_mode = 2;
+  // The surface it found, above the container's cavity bottom, in mm, as found: below 0 where the
+  // container sits lower than the model. Unset when it did not search, or found no liquid.
+  optional double liquid_height = 3;
+  // The pressure curve of its stroke, when TADM was asked for and one was read back.
+  TADMCurve tadm = 4;
+}
+
+// An aspirate's or a dispense's measurements, carried as a detail of the Connect error it failed
+// with, beside the `Error`: what was measured before the failure is what explains it.
+message PipetteMeasurements {
+  repeated PipetteMeasurement measurements = 1;
+}
+
 // One channel, as it reported itself.
 message PipetteConfiguration {
   optional PipetteChannelType channel_type = 1;
@@ -1185,9 +1204,15 @@ message PipettesAspirateRequest {
   // X distance within which containers share a batch, in mm. `default_x_grouping_tolerance` when
   // unset.
   optional double x_grouping_tolerance = 34;
+  // Record each channel's pressure curve over its draw, and return it. Each batch's channels are
+  // put in TADM mode for their command, after their search, and back in LLD mode after. Off when
+  // unset.
+  optional bool tadm = 35;
 }
 
 message PipettesAspirateResponse {
+  // What each container's channel measured, one per container in order.
+  repeated PipetteMeasurement measurements = 1;
 }
 
 message PipettesDispenseRequest {
@@ -1277,9 +1302,15 @@ message PipettesDispenseRequest {
   // X distance within which containers share a batch, in mm. `default_x_grouping_tolerance` when
   // unset.
   optional double x_grouping_tolerance = 36;
+  // Record each channel's pressure curve over its dispense, and return it. Each batch's channels
+  // are put in TADM mode for their command, after their search, and back in LLD mode after. Off
+  // when unset.
+  optional bool tadm = 37;
 }
 
 message PipettesDispenseResponse {
+  // What each container's channel measured, one per container in order.
+  repeated PipetteMeasurement measurements = 1;
 }
 
 // The defaults Pipettes uses where a call names none. A STAR server takes them from its
