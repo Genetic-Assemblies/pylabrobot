@@ -9,10 +9,10 @@ common driver in one place rather than duplicated per arm model.
 Scope - the PreciseFlex robot line. Implemented:
 
 - PreciseFlex 400 (PF400)
-- PreciseFlex 3400 (PF3400)
 
 To be added here:
 
+- PreciseFlex 3400 (PF3400)
 - PreciseFlex 100 / 1400 (PF100 / PF1400)
 - c-series: c3, c5, c8A, c10
 - direct-drive: DD4, DD6
@@ -23,12 +23,13 @@ Everything here is PreciseFlex-specific, including the TCS controller protocol (
 Guidance/TCS controller, so they live with it. A future, genuinely different Brooks device family
 would get its own sibling package under ``brooks/``, and anything shared would be lifted up then.
 
-Re-exports the public classes, so ``from pylabrobot.brooks.precise_flex import PreciseFlexDriver``
+Re-exports the public classes, so ``from pylabrobot.brooks.precise_flex import PreciseFlex400``
 works.
 """
 
 import warnings
 
+from pylabrobot.brooks.precise_flex.device import PreciseFlex400, PreciseFlexDevice
 from pylabrobot.brooks.precise_flex.driver.configuration import PreciseFlexConfiguration
 from pylabrobot.brooks.precise_flex.driver.errors import (
   OutOfRangeOfMotionError,
@@ -38,15 +39,19 @@ from pylabrobot.brooks.precise_flex.driver.errors import (
   PreciseFlexPowerError,
   PreciseFlexReachError,
   PreciseFlexServoError,
+  PreciseFlexVisionError,
 )
 from pylabrobot.brooks.precise_flex.driver.features.arm import MotionProfile, PreciseFlexArm
 from pylabrobot.brooks.precise_flex.driver.features.gripper import PreciseFlexGripper
 from pylabrobot.brooks.precise_flex.driver.features.rail import PreciseFlexRail
+from pylabrobot.brooks.precise_flex.driver.features.vision import PreciseFlexVision
 from pylabrobot.brooks.precise_flex.driver.master import PreciseFlex, PreciseFlexDriver
+from pylabrobot.brooks.precise_flex.driver.simulator import PreciseFlexSimulationDriver
 from pylabrobot.brooks.precise_flex.kinematics import (
   ElbowOrientation,
   PreciseFlexAxis,
   PreciseFlexCartesianPose,
+  PreciseFlexPose,
   WorkEnvelope,
   Wrist,
 )
@@ -56,6 +61,8 @@ __all__ = [
   "MotionProfile",
   "OutOfRangeOfMotionError",
   "PreciseFlex",
+  "PreciseFlex400",
+  "PreciseFlexDevice",
   "PreciseFlexDriver",
   "PreciseFlexArm",
   "PreciseFlexAxis",
@@ -65,10 +72,14 @@ __all__ = [
   "PreciseFlexError",
   "PreciseFlexGripper",
   "PreciseFlexNotReadyError",
+  "PreciseFlexPose",
   "PreciseFlexPowerError",
   "PreciseFlexReachError",
   "PreciseFlexRail",
   "PreciseFlexServoError",
+  "PreciseFlexSimulationDriver",
+  "PreciseFlexVision",
+  "PreciseFlexVisionError",
   "WorkEnvelope",
   "Wrist",
 ]

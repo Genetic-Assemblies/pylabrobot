@@ -1076,7 +1076,7 @@ def _fill_Int32List_56(message: types_pb2.Int32List, value: Sequence[int]) -> No
     message.values.append(int(item_57))
 
 
-def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, blow_out_air_volumes: Optional[Sequence[float]], immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], pre_wetting_volumes: Optional[Sequence[float]], pre_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], clot_detection_heights: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], tadm: bool, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesAspirateRequest:
+def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, blow_out_air_volumes: Optional[Sequence[float]], immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], pre_wetting_volumes: Optional[Sequence[float]], pre_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], clot_detection_heights: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float], tadm: bool) -> pipettes_pb2.PipettesAspirateRequest:
   """A call to Pipettes.aspirate, as its request."""
   request = pipettes_pb2.PipettesAspirateRequest()
   for item_31 in containers:
@@ -1164,7 +1164,6 @@ def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container],
   if limit_curve_indices is not None:
     request.limit_curve_indices.SetInParent()
     _fill_Int32List_56(request.limit_curve_indices, limit_curve_indices)
-  request.tadm = bool(tadm)
   if minimum_traverse_height_start is not None:
     request.minimum_traverse_height_start = float(minimum_traverse_height_start)
   if minimum_traverse_height_during is not None:
@@ -1173,6 +1172,7 @@ def encode_pipettes_aspirate_request(*, containers: Sequence[handles.Container],
     request.minimum_traverse_height_end = float(minimum_traverse_height_end)
   if x_grouping_tolerance is not None:
     request.x_grouping_tolerance = float(x_grouping_tolerance)
+  request.tadm = bool(tadm)
   return request
 
 
@@ -1404,11 +1404,6 @@ async def call_pipettes_aspirate(target: Pipettes, request: pipettes_pb2.Pipette
     a_limit_curve_indices = _read_Int32List_82(request.limit_curve_indices, refs)
   else:
     a_limit_curve_indices = None
-  a_tadm: bool
-  if request.HasField('tadm'):
-    a_tadm = request.tadm
-  else:
-    a_tadm = False
   a_minimum_traverse_height_start: Optional[float]
   if request.HasField('minimum_traverse_height_start'):
     a_minimum_traverse_height_start = request.minimum_traverse_height_start
@@ -1429,7 +1424,12 @@ async def call_pipettes_aspirate(target: Pipettes, request: pipettes_pb2.Pipette
     a_x_grouping_tolerance = request.x_grouping_tolerance
   else:
     a_x_grouping_tolerance = None
-  return await target.aspirate(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, blow_out_air_volumes=a_blow_out_air_volumes, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, pre_wetting_volumes=a_pre_wetting_volumes, pre_mixes=a_pre_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, settling_times=a_settling_times, swap_speeds=a_swap_speeds, clot_detection_heights=a_clot_detection_heights, pull_out_distances_transport_air=a_pull_out_distances_transport_air, transport_air_volumes=a_transport_air_volumes, limit_curve_indices=a_limit_curve_indices, tadm=a_tadm, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance)
+  a_tadm: bool
+  if request.HasField('tadm'):
+    a_tadm = request.tadm
+  else:
+    a_tadm = False
+  return await target.aspirate(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, blow_out_air_volumes=a_blow_out_air_volumes, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, pre_wetting_volumes=a_pre_wetting_volumes, pre_mixes=a_pre_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, settling_times=a_settling_times, swap_speeds=a_swap_speeds, clot_detection_heights=a_clot_detection_heights, pull_out_distances_transport_air=a_pull_out_distances_transport_air, transport_air_volumes=a_transport_air_volumes, limit_curve_indices=a_limit_curve_indices, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance, tadm=a_tadm)
 
 
 # pylabrobot.hamilton.star.server.v1.TADMOperation's values, by their names' suffixes.
@@ -1689,7 +1689,7 @@ def decode_pipettes_discover_response(response: pipettes_pb2.PipettesDiscoverRes
   return None
 
 
-def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], empty: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, side_touch_off_distance: float, immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], cut_off_speeds: Optional[Sequence[float]], stop_back_volumes: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], blow_out_air_volumes: Optional[Sequence[float]], post_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], tadm: bool, minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float]) -> pipettes_pb2.PipettesDispenseRequest:
+def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container], volumes: Optional[Sequence[float]], use_channels: Optional[List[int]], resource_offsets: Optional[List[Coordinate]], liquid_heights: Optional[Sequence[Optional[float]]], lld_mode: Union[LLDMode, Sequence[LLDMode], None], flow_rates: Optional[Sequence[float]], hamilton_liquid_classes: Optional[Sequence[HamiltonLiquidClass]], jet: Optional[Sequence[bool]], blow_out: Optional[Sequence[bool]], empty: Optional[Sequence[bool]], piston_volumes: Optional[Sequence[float]], search_speed: float, approach_speed: float, side_touch_off_distance: float, immersion_depths: Optional[Sequence[float]], minimum_allowed_z_positions_during: Optional[Sequence[float]], transport_air_volumes: Optional[Sequence[float]], cut_off_speeds: Optional[Sequence[float]], stop_back_volumes: Optional[Sequence[float]], surface_following_distances: Optional[Sequence[float]], auto_surface_following: bool, second_section_heights: Optional[Sequence[float]], second_section_ratios: Optional[Sequence[float]], blow_out_air_volumes: Optional[Sequence[float]], post_mixes: Optional[Sequence[Optional[Mix]]], mix_positions_from_liquid_surface: Optional[Sequence[float]], settling_times: Optional[Sequence[float]], swap_speeds: Optional[Sequence[float]], pull_out_distances_transport_air: Optional[Sequence[float]], limit_curve_indices: Optional[Sequence[int]], minimum_traverse_height_start: Optional[float], minimum_traverse_height_during: Optional[float], minimum_traverse_height_end: Optional[float], x_grouping_tolerance: Optional[float], tadm: bool) -> pipettes_pb2.PipettesDispenseRequest:
   """A call to Pipettes.dispense, as its request."""
   request = pipettes_pb2.PipettesDispenseRequest()
   for item_100 in containers:
@@ -1781,7 +1781,6 @@ def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container],
   if limit_curve_indices is not None:
     request.limit_curve_indices.SetInParent()
     _fill_Int32List_56(request.limit_curve_indices, limit_curve_indices)
-  request.tadm = bool(tadm)
   if minimum_traverse_height_start is not None:
     request.minimum_traverse_height_start = float(minimum_traverse_height_start)
   if minimum_traverse_height_during is not None:
@@ -1790,6 +1789,7 @@ def encode_pipettes_dispense_request(*, containers: Sequence[handles.Container],
     request.minimum_traverse_height_end = float(minimum_traverse_height_end)
   if x_grouping_tolerance is not None:
     request.x_grouping_tolerance = float(x_grouping_tolerance)
+  request.tadm = bool(tadm)
   return request
 
 
@@ -1950,11 +1950,6 @@ async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.Pipette
     a_limit_curve_indices = _read_Int32List_82(request.limit_curve_indices, refs)
   else:
     a_limit_curve_indices = None
-  a_tadm: bool
-  if request.HasField('tadm'):
-    a_tadm = request.tadm
-  else:
-    a_tadm = False
   a_minimum_traverse_height_start: Optional[float]
   if request.HasField('minimum_traverse_height_start'):
     a_minimum_traverse_height_start = request.minimum_traverse_height_start
@@ -1975,7 +1970,12 @@ async def call_pipettes_dispense(target: Pipettes, request: pipettes_pb2.Pipette
     a_x_grouping_tolerance = request.x_grouping_tolerance
   else:
     a_x_grouping_tolerance = None
-  return await target.dispense(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, empty=a_empty, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, side_touch_off_distance=a_side_touch_off_distance, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, transport_air_volumes=a_transport_air_volumes, cut_off_speeds=a_cut_off_speeds, stop_back_volumes=a_stop_back_volumes, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, blow_out_air_volumes=a_blow_out_air_volumes, post_mixes=a_post_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, settling_times=a_settling_times, swap_speeds=a_swap_speeds, pull_out_distances_transport_air=a_pull_out_distances_transport_air, limit_curve_indices=a_limit_curve_indices, tadm=a_tadm, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance)
+  a_tadm: bool
+  if request.HasField('tadm'):
+    a_tadm = request.tadm
+  else:
+    a_tadm = False
+  return await target.dispense(containers=a_containers, volumes=a_volumes, use_channels=a_use_channels, resource_offsets=a_resource_offsets, liquid_heights=a_liquid_heights, lld_mode=a_lld_mode, flow_rates=a_flow_rates, hamilton_liquid_classes=a_hamilton_liquid_classes, jet=a_jet, blow_out=a_blow_out, empty=a_empty, piston_volumes=a_piston_volumes, search_speed=a_search_speed, approach_speed=a_approach_speed, side_touch_off_distance=a_side_touch_off_distance, immersion_depths=a_immersion_depths, minimum_allowed_z_positions_during=a_minimum_allowed_z_positions_during, transport_air_volumes=a_transport_air_volumes, cut_off_speeds=a_cut_off_speeds, stop_back_volumes=a_stop_back_volumes, surface_following_distances=a_surface_following_distances, auto_surface_following=a_auto_surface_following, second_section_heights=a_second_section_heights, second_section_ratios=a_second_section_ratios, blow_out_air_volumes=a_blow_out_air_volumes, post_mixes=a_post_mixes, mix_positions_from_liquid_surface=a_mix_positions_from_liquid_surface, settling_times=a_settling_times, swap_speeds=a_swap_speeds, pull_out_distances_transport_air=a_pull_out_distances_transport_air, limit_curve_indices=a_limit_curve_indices, minimum_traverse_height_start=a_minimum_traverse_height_start, minimum_traverse_height_during=a_minimum_traverse_height_during, minimum_traverse_height_end=a_minimum_traverse_height_end, x_grouping_tolerance=a_x_grouping_tolerance, tadm=a_tadm)
 
 
 def encode_pipettes_dispense_response(value: List[PipetteMeasurement]) -> pipettes_pb2.PipettesDispenseResponse:
