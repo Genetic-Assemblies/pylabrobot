@@ -63,7 +63,7 @@ jobs:
           if [ "$behind" = 0 ]; then echo "state=current" >> "$GITHUB_OUTPUT"; exit 0; fi
           # One open sync at a time: until someone deals with it, later ones
           # would only repeat it.
-          if [ -n "$(gh pr list --state open --label upstream-sync --json number --jq '.[].number')" ]; then
+          if [ -n "$(gh pr list --state open --json headRefName --jq '.[].headRefName | select(startswith("sync/"))')" ]; then
             echo "a sync pull request is already open"; echo "state=waiting" >> "$GITHUB_OUTPUT"; exit 0
           fi
           branch="sync/$(date -u +%Y-%m-%d)-$(git rev-parse --short upstream/main)"
@@ -122,9 +122,9 @@ jobs:
               fi
             fi
           } > "$body"
-          gh label create upstream-sync --color BFD4F2 --description "merging upstream PyLabRobot" 2>/dev/null || true
-          gh pr create --base main --head "$BRANCH" --label upstream-sync \
+          gh pr create --base main --head "$BRANCH" \
             --title "Sync upstream PyLabRobot ($(git rev-parse --short upstream/main))" --body-file "$body"
+          gh pr edit "$BRANCH" --add-label upstream-sync || true
 
       - name: say so when the sync itself fails
         if: failure()
