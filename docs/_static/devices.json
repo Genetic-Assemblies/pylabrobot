@@ -596,6 +596,7 @@
   },
   {
     "id": "highres-microspin",
+    "needs_hardware_testing": true,
     "vendor": "HighRes Biosolutions",
     "name": "MicroSpin",
     "kind": "centrifuge",
@@ -603,9 +604,10 @@
       "centrifuging"
     ],
     "status": "mostly",
-    "api": "pylabrobot.legacy.centrifuge.MicroSpin",
-    "api_version": "v0",
-    "code_slug": "legacy/centrifuge",
+    "api": "pylabrobot.high_res.microspin.MicroSpin",
+    "api_version": "v1",
+    "code_slug": "high_res/microspin",
+    "doc_slug": "high_res/microspin/hello-world",
     "manager": "https://discuss.pylabrobot.org/u/rickwierenga",
     "oem": "https://www.highres.com/lab-instruments/microspin-centrifuge"
   },

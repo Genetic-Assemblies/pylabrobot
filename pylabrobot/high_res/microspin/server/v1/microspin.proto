@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+// The HighRes MicroSpin, served over Connect: one call per public method of `MicroSpin`, each
+// argument a field named as the argument is. An unset field with presence is an argument not
+// given, so the server's default for it applies. Units are PLR's: x g, seconds, rpm; a ramp is a
+// fraction of the device's maximum.
+//
+// The device's resources are on a resource server; `Describe` names them by id.
+//
+// Regenerate with:
+//   python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. --connectrpc_out=. \
+//     --connectrpc_opt=protobuf=google pylabrobot/high_res/microspin/server/v1/microspin.proto
+package pylabrobot.high_res.microspin.server.v1;
+
+import "pylabrobot/resources/server/v1/types.proto";
+
+message Empty {}
+
+// ============================================================================================
+// What a client keeps
+// ============================================================================================
+
+// The defaults the device uses where a call names none. They belong to the server.
+message Settings {
+  optional double default_acceleration = 1;
+  optional double default_deceleration = 2;
+  optional double default_timeout = 3;
+  optional double default_home_timeout = 4;
+  optional double default_present_timeout = 5;
+  optional double default_spin_timeout_margin = 6;
+  optional double default_abort_timeout = 7;
+  optional double default_spindle_stop_timeout = 8;
+  optional double default_spindle_poll_interval = 9;
+}
+
+message Description {
+  // What the body is called on the resource server.
+  string name = 1;
+  pylabrobot.resources.server.v1.ResourceRef body = 2;
+  pylabrobot.resources.server.v1.ResourceRef rotor = 3;
+  pylabrobot.resources.server.v1.ResourceRef bucket_1 = 4;
+  pylabrobot.resources.server.v1.ResourceRef bucket_2 = 5;
+  // Every one set: the defaults in force.
+  Settings settings = 6;
+}
+
+// ============================================================================================
+// What the device reports
+// ============================================================================================
+
+message Version {
+  // By the names the device gives them: "Product Name", "Serial Number", "Version", ...
+  map<string, string> fields = 1;
+}
+
+message Homed {
+  bool homed = 1;
+}
+
+message RequestStatusRequest {
+  optional double timeout = 1;
+}
+
+message Status {
+  // In the spindle drive's counts.
+  int64 spindle_position = 1;
+  // In the door drive's counts.
+  int64 door_position = 2;
+}
+
+message RequestErrorsRequest {
+  optional int32 count = 1;
+}
+
+message ErrorEntry {
+  int32 index = 1;
+  // The device's clock, HH:MM:SS.
+  string time = 2;
+  // The command it was raised for; below 1, one of the device's own processes.
+  int64 command_id = 3;
+  string message = 4;
+}
+
+message ErrorStack {
+  // Oldest first.
+  repeated ErrorEntry entries = 1;
+}
+
+enum CommandStatus {
+  COMMAND_STATUS_UNSPECIFIED = 0;
+  COMMAND_STATUS_OK = 1;
+  COMMAND_STATUS_ERROR = 2;
+  COMMAND_STATUS_ABORTED = 3;
+  COMMAND_STATUS_FAIL = 4;
+  COMMAND_STATUS_RUNNING = 5;
+}
+
+message RequestCommandStatusRequest {
+  int64 command_id = 1;
+}
+
+message CommandStatusResponse {
+  CommandStatus status = 1;
+}
+
+message SpindleVelocity {
+  double rpm = 1;
+}
+
+message WaitForSpindleStoppedRequest {
+  optional double timeout = 1;
+  optional double poll_interval = 2;
+}
+
+// ============================================================================================
+// Motion
+// ============================================================================================
+
+message PresentBucketRequest {
+  // 1 or 2.
+  int32 bucket = 1;
+}
+
+message SpinRequest {
+  // Made by the client, 1 to 16 bytes: an integer's big-endian bytes, or a UUID's 16. A spin
+  // asked for again with the same id is not started again: the call streams the one already
+  // under way, or its result. The same id with other arguments is refused.
+  bytes request_id = 1;
+  double g = 2;
+  double duration = 3;
+  optional double acceleration = 4;
+  optional double deceleration = 5;
+  optional double timeout = 6;
+}
+
+enum SpinPhase {
+  SPIN_PHASE_UNSPECIFIED = 0;
+  // Sent to the device, and not yet answered.
+  SPIN_PHASE_RUNNING = 1;
+  // Answered: `error` unset is a spin that finished.
+  SPIN_PHASE_FINISHED = 2;
+}
+
+// What a spin is doing. A stream starts with the spin as it is, then sends one each time the
+// server reads the spindle, and ends with the spin finished.
+message SpinUpdate {
+  SpinRequest request = 1;
+  SpinPhase phase = 2;
+  // Since the server started it, in seconds.
+  double elapsed = 3;
+  // The spindle's speed when last read, in rpm.
+  double rpm = 4;
+  // On a finished spin that did not finish well: what it raised.
+  optional Error error = 5;
+}
+
+message WatchSpinRequest {
+  bytes request_id = 1;
+}
+
+message ResetRequest {
+  optional double timeout = 1;
+}
+
+service MicroSpinService {
+  // What the client keeps: the resources' ids and the defaults.
+  rpc Describe(Empty) returns (Description);
+  rpc Setup(Empty) returns (Empty);
+
+  rpc RequestVersion(Empty) returns (Version);
+  rpc RequestHomed(Empty) returns (Homed);
+  rpc RequestStatus(RequestStatusRequest) returns (Status);
+  rpc RequestErrors(RequestErrorsRequest) returns (ErrorStack);
+  rpc RequestCommandStatus(RequestCommandStatusRequest) returns (CommandStatusResponse);
+  rpc RequestSpindleVelocity(Empty) returns (SpindleVelocity);
+  rpc WaitForSpindleStopped(WaitForSpindleStoppedRequest) returns (Empty);
+
+  rpc Home(Empty) returns (Empty);
+  rpc PresentBucket(PresentBucketRequest) returns (Empty);
+  // Starts the spin, or joins the one with this request id; the server owns it either way, so a
+  // client that goes away does not stop it.
+  rpc Spin(SpinRequest) returns (stream SpinUpdate);
+  // The spin with this request id, as `Spin` streams it; one that finished, its last update.
+  rpc WatchSpin(WatchSpinRequest) returns (stream SpinUpdate);
+
+  rpc Abort(Empty) returns (Empty);
+  rpc ClearAbort(Empty) returns (Empty);
+  rpc Reset(ResetRequest) returns (Status);
+}
+
+// ============================================================================================
+// How a call fails
+// ============================================================================================
+
+// The exception a call raised. A class not listed goes as the nearest one it derives from.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_CONNECTION = 4;  // ConnectionError
+  ERROR_KIND_MICROSPIN = 5;  // MicroSpinError
+  ERROR_KIND_DOOR_LOCK_PIN = 6;  // DoorLockPinError
+  ERROR_KIND_AMPLIFIER_DISABLED = 7;  // AmplifierDisabledError
+  ERROR_KIND_NOT_HOMED = 8;  // NotHomedError
+  ERROR_KIND_QUEUE_TIMEOUT = 9;  // QueueTimeoutError
+  ERROR_KIND_ABORTED = 10;  // MicroSpinAbortedError
+  ERROR_KIND_MICROSPIN_TIMEOUT = 11;  // MicroSpinTimeoutError
+  ERROR_KIND_PROTOCOL = 12;  // MicroSpinProtocolError
+  ERROR_KIND_RESOURCE_SERVER = 13;  // ServerError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What `str()` of it says.
+  string message = 2;
+  // The device's errors: the command sent, the id it was acknowledged with, every line it printed.
+  string command = 3;
+  optional int64 command_id = 4;
+  repeated string lines = 5;
+  // A `MicroSpinTimeoutError`: how long was waited.
+  optional double timeout = 6;
+  // A `ServerError`: its problem and resource.
+  pylabrobot.resources.server.v1.Problem problem = 7;
+  string resource_name = 8;
+}
