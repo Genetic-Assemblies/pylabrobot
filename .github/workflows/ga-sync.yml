@@ -1,0 +1,137 @@
+# Genetic Assemblies' pylabrobot: upstream PyLabRobot plus what gatc needs.
+#
+# main here is upstream's main with our changes merged in; gatc and its device
+# servers pin commits of it. Every day this merges upstream's main into it:
+#
+# - nothing new upstream: nothing happens;
+# - merges cleanly, the whole suite passes, and no .proto file changed: the
+#   merge is pushed to main;
+# - a conflict, a failing test, or a changed .proto: a pull request with what
+#   went wrong, mentioning the maintainer, and main is left alone.
+#
+# Merged, never rebased: a commit gatc pins must stay on main for good.
+#
+# A pull request opened with this workflow's token runs no other workflow, so
+# the suite runs here, as upstream's test.yml runs it.
+#
+# GitHub refuses a push that changes a workflow file from the built-in token,
+# and upstream does change its own. Set the GA_SYNC_TOKEN secret (a
+# fine-grained token on this repository: contents, pull requests and
+# workflows, read and write) and the sync pushes with it. Any failure of this
+# workflow opens an issue mentioning the maintainer.
+
+name: sync upstream
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ga-sync
+
+env:
+  MAINTAINER: "@Koeng101"
+  UPSTREAM: https://github.com/PyLabRobot/pylabrobot.git
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GA_SYNC_TOKEN || github.token }}
+
+      - name: merge upstream
+        id: merge
+        env:
+          GH_TOKEN: ${{ secrets.GA_SYNC_TOKEN || github.token }}
+        run: |
+          git config user.name "ga-sync"
+          git config user.email "ga-sync@users.noreply.github.com"
+          git remote add upstream "$UPSTREAM"
+          git fetch --quiet upstream main
+          behind=$(git rev-list --count HEAD..upstream/main)
+          echo "upstream is $behind commits ahead"
+          if [ "$behind" = 0 ]; then echo "state=current" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # One open sync at a time: until someone deals with it, later ones
+          # would only repeat it.
+          if [ -n "$(gh pr list --state open --label upstream-sync --json number --jq '.[].number')" ]; then
+            echo "a sync pull request is already open"; echo "state=waiting" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          branch="sync/$(date -u +%Y-%m-%d)-$(git rev-parse --short upstream/main)"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          git checkout --quiet -b "$branch"
+          if git merge --no-edit -m "Merge upstream PyLabRobot main ($(git rev-parse --short upstream/main))" upstream/main; then
+            echo "state=merged" >> "$GITHUB_OUTPUT"
+            git diff --name-only main HEAD -- '*.proto' > "$RUNNER_TEMP/protos"
+          else
+            git diff --name-only --diff-filter=U > "$RUNNER_TEMP/conflicts"
+            git merge --abort
+            echo "state=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: run the suite
+        id: tests
+        if: steps.merge.outputs.state == 'merged'
+        continue-on-error: true
+        uses: ./.github/actions/run-tests
+        with:
+          version: "3.12"
+          extra: all
+
+      - name: push, or ask
+        if: steps.merge.outputs.state == 'merged' || steps.merge.outputs.state == 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.GA_SYNC_TOKEN || github.token }}
+          STATE: ${{ steps.merge.outputs.state }}
+          TESTS: ${{ steps.tests.outcome }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$STATE" = merged ] && [ "$TESTS" = success ] && [ ! -s "$RUNNER_TEMP/protos" ]; then
+            git push origin HEAD:main
+            echo "merged upstream into main"
+            exit 0
+          fi
+          body="$RUNNER_TEMP/body.md"
+          {
+            echo "$MAINTAINER: upstream's main did not merge into ours on its own. Run: $RUN"
+            echo
+            if [ "$STATE" = conflict ]; then
+              # The branch is upstream's main as it is: merging it here shows
+              # the conflicts to resolve.
+              git push --quiet origin "upstream/main:refs/heads/$BRANCH"
+              echo "**Conflicts** in:"
+              sed 's/^/- `/; s/$/`/' "$RUNNER_TEMP/conflicts"
+            else
+              git push --quiet origin "HEAD:refs/heads/$BRANCH"
+              if [ "$TESTS" != success ]; then
+                echo "**The suite failed** on the merge; see the run's \"run the suite\" step."
+              fi
+              if [ -s "$RUNNER_TEMP/protos" ]; then
+                echo "**Protos changed**, which gatc and the device servers copy:"
+                sed 's/^/- `/; s/$/`/' "$RUNNER_TEMP/protos"
+              fi
+            fi
+          } > "$body"
+          gh label create upstream-sync --color BFD4F2 --description "merging upstream PyLabRobot" 2>/dev/null || true
+          gh pr create --base main --head "$BRANCH" --label upstream-sync \
+            --title "Sync upstream PyLabRobot ($(git rev-parse --short upstream/main))" --body-file "$body"
+
+      - name: say so when the sync itself fails
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create --title "Upstream sync failed ($(date -u +%Y-%m-%d))" \
+            --body "$MAINTAINER: the upstream sync could not finish; nothing was pushed to main. Run: $RUN
+          If a push was refused for changing a workflow file, set the GA_SYNC_TOKEN secret (see ga-sync.yml)."
