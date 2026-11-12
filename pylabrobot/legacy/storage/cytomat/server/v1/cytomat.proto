@@ -1,0 +1,209 @@
+syntax = "proto3";
+
+// A Thermo Cytomat served over Connect. The calls are `CytomatBackend`'s public coroutines (an
+// `IncubatorBackend`, which an `Incubator` drives), each argument a field named as the argument
+// is; an unset optional field is an argument not given, so its default applies.
+//
+// Racks, sites and plates are as `pylabrobot/legacy/storage/server/v1/incubator.proto` has them: a
+// site by name in the racks the backend was told, in the order the device numbers them. The
+// backend numbers a site for the firmware from its rack's place in that order and its key in the
+// rack: on a C6000, C6002, C2C 450 Shake or 5C, the racks' sites counted through from 1 ("013" is
+// the third site of the second rack of ten); on a C2C 425, "<rack index> <site key>".
+//
+// Regenerate with `make generate-rpc`.
+package pylabrobot.legacy.storage.cytomat.server.v1;
+
+import "pylabrobot/legacy/storage/server/v1/incubator.proto";
+import "pylabrobot/resources/server/v1/types.proto";
+
+// The backend as the server has it.
+message Description {
+  // As `CytomatType` names it: "C6000", say.
+  string model = 1;
+  // As the backend was last told them.
+  repeated pylabrobot.legacy.storage.server.v1.Rack racks = 2;
+}
+
+message OverviewRegister {
+  bool transfer_station_occupied = 1;
+  bool device_door_open = 2;
+  bool automatic_gate_open = 3;
+  bool handler_occupied = 4;
+  bool error_register_set = 5;
+  bool warning_register_set = 6;
+  bool ready_bit_set = 7;
+  bool busy_bit_set = 8;
+}
+
+// A register's value as the firmware gives it, two hex digits: a `WarningRegister` or
+// `ErrorRegister` value.
+message Register {
+  string value = 1;
+}
+
+message ActionRegisterState {
+  // An `ActionType` value, "02" say.
+  string target = 1;
+  // An `ActionRegister` value.
+  string action = 2;
+}
+
+message SwapStationState {
+  // `SwapStationPosition`, `LoadStatusFrontOfGate`, `LoadStatusAtProcessor`.
+  int32 position = 1;
+  int32 load_status_front_of_gate = 2;
+  int32 load_status_at_processor = 3;
+}
+
+message SensorStates {
+  // By `SensorRegister` name: "SHOVEL_RETRACTED", say.
+  map<string, bool> states = 1;
+}
+
+message IncubationResponse {
+  double nominal_value = 1;
+  double actual_value = 2;
+}
+
+message SendCommandRequest {
+  string command_type = 1;
+  string command = 2;
+  string params = 3;
+}
+
+// A number that may be None: the message set with no value is None.
+message OptionalInt {
+  optional int32 value = 1;
+}
+
+message SendActionRequest {
+  string command_type = 1;
+  string command = 2;
+  string params = 3;
+  // In seconds; unset is the default, and a value with none set is not waiting.
+  OptionalInt timeout = 4;
+}
+
+message ReadBarcodeRequest {
+  // Storage locations as the firmware numbers them, three digits.
+  string site_number_a = 1;
+  string site_number_b = 2;
+}
+
+message WaitForTransferStationRequest {
+  optional bool occupied = 1;
+}
+
+message WaitForTaskCompletionRequest {
+  // In seconds.
+  optional double timeout = 1;
+}
+
+// Shakers by number, 1 and 2.
+message Shakers {
+  repeated int32 shakers = 1;
+}
+
+message StartShakingRequest {
+  double frequency = 1;
+  // Unset: both.
+  optional Shakers shakers = 2;
+}
+
+message SetShakingFrequencyRequest {
+  int32 frequency = 1;
+  optional Shakers shakers = 2;
+}
+
+message Texts {
+  repeated string values = 1;
+}
+
+message IncubationQueryRequest {
+  // "ic", "ih", "io" or "it".
+  string query = 1;
+}
+
+message PlateRequest {
+  pylabrobot.legacy.storage.server.v1.Plate plate = 1;
+}
+
+message TakeInPlateRequest {
+  pylabrobot.legacy.storage.server.v1.Plate plate = 1;
+  pylabrobot.resources.server.v1.ResourceRef site = 2;
+}
+
+message SetTemperatureRequest {
+  double temperature = 1;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done, with what it returned. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+  // What a move or a wait for a task returned.
+  optional OverviewRegister overview = 3;
+}
+
+service CytomatService {
+  // The backend's model and racks.
+  rpc Describe(pylabrobot.legacy.storage.server.v1.Empty) returns (Description);
+
+  // A long call that moves the device finishes on the server even if its client goes away, and
+  // waits for any move under way; a wait is dropped when its client goes.
+  rpc Setup(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc Stop(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Empty);
+  rpc SetRacks(pylabrobot.legacy.storage.server.v1.SetRacksRequest) returns (pylabrobot.legacy.storage.server.v1.Empty);
+
+  rpc SendCommand(SendCommandRequest) returns (pylabrobot.legacy.storage.server.v1.Text);
+  rpc SendAction(SendActionRequest) returns (stream Progress);
+  rpc GetOverviewRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (OverviewRegister);
+  rpc GetWarningRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (Register);
+  rpc GetErrorRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (Register);
+  rpc ResetErrorRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Empty);
+  rpc Initialize(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc OpenDoor(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc CloseDoor(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc ShovelIn(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc ShovelOut(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc GetActionRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (ActionRegisterState);
+  rpc GetSwapRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (SwapStationState);
+  rpc GetSensorRegister(pylabrobot.legacy.storage.server.v1.Empty) returns (SensorStates);
+
+  // The firmware's moves between storage (a site), the transfer station, the wait position and
+  // the exposed position.
+  rpc ActionTransferToStorage(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+  rpc ActionStorageToTransfer(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+  rpc ActionStorageToWait(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+  rpc ActionWaitToStorage(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+  rpc ActionWaitToTransfer(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc ActionTransferToWait(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc ActionWaitToExposed(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc ActionExposedToWait(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc ActionExposedToStorage(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+  rpc ActionStorageToExposed(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+  rpc ActionReadBarcode(ReadBarcodeRequest) returns (OverviewRegister);
+  rpc WaitForTransferStation(WaitForTransferStationRequest) returns (stream Progress);
+  rpc WaitForTaskCompletion(WaitForTaskCompletionRequest) returns (stream Progress);
+
+  // Each returns the binary string the backend makes of the reply.
+  rpc InitShakers(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Text);
+  rpc StartShaking(StartShakingRequest) returns (pylabrobot.legacy.storage.server.v1.Text);
+  rpc StopShaking(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Text);
+  rpc SetShakingFrequency(SetShakingFrequencyRequest) returns (Texts);
+
+  rpc GetIncubationQuery(IncubationQueryRequest) returns (IncubationResponse);
+  rpc GetCo2(pylabrobot.legacy.storage.server.v1.Empty) returns (IncubationResponse);
+  rpc GetHumidity(pylabrobot.legacy.storage.server.v1.Empty) returns (IncubationResponse);
+  rpc GetO2(pylabrobot.legacy.storage.server.v1.Empty) returns (IncubationResponse);
+  rpc GetTemperature(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  // The backend has none: it raises NotImplementedError.
+  rpc SetTemperature(SetTemperatureRequest) returns (pylabrobot.legacy.storage.server.v1.Empty);
+
+  // The plate from its site to the transfer station: `ActionStorageToTransfer`.
+  rpc FetchPlateToLoadingTray(PlateRequest) returns (stream Progress);
+  // The plate on the transfer station to a site: `ActionTransferToStorage`.
+  rpc TakeInPlate(TakeInPlateRequest) returns (stream Progress);
+}

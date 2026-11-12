@@ -78,6 +78,10 @@ generate-rpc:
 	$(BIN)python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. \
 		--connectrpc_out=. --connectrpc_opt=protobuf=google \
 		pylabrobot/high_res/sample_storage/server/v1/*.proto
+	$(BIN)python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. \
+		--connectrpc_out=. --connectrpc_opt=protobuf=google \
+		pylabrobot/legacy/storage/server/v1/*.proto \
+		pylabrobot/legacy/storage/cytomat/server/v1/*.proto
 
 clear-pyc:
 	find . -name "*.pyc" | xargs rm
