@@ -18,6 +18,9 @@ from pylabrobot.legacy.thermocycling.standard import BlockStatus, LidStatus, Pro
 # How near its target a temperature is to be holding at it, in Celsius.
 _AT_TARGET = 0.5
 
+# What a run that is between two steps says is left of the one it is on, in seconds.
+_BETWEEN_STEPS = 0.001
+
 
 class Clock:
   """Time for a simulator: `speed` times faster than the real one."""
@@ -268,10 +271,17 @@ class ThermocyclerSimulatorBackend(ThermocyclerBackend):
 
   async def get_hold_time(self) -> float:
     """The seconds left of the running step: its ramp, if it is still ramping, and its hold. A
-    step that ramps is still running, so `Thermocycler.is_profile_running` says so."""
+    step that ramps is still running, so `Thermocycler.is_profile_running` says so.
+
+    Between a stage's last step and the next stage's first, the step and cycle say the stage is
+    done, and `is_profile_running` only looks at the stage it is in: so until the protocol's last
+    step, a run that is going says some time is left, as a device counting on would."""
     if not self._running() or self._hold_until is None:
       return 0.0
-    return max(0.0, self._hold_until - self.clock.now())
+    left = max(0.0, self._hold_until - self.clock.now())
+    if not self._last_step:
+      return max(left, _BETWEEN_STEPS)
+    return left
 
   async def get_current_cycle_index(self) -> int:
     return self._cycle
