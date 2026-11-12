@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+// A Liconic incubator served over Connect. The calls are `ExperimentalLiconicBackend`'s public
+// coroutines (an `IncubatorBackend`, which an `Incubator` drives), each argument a field named as
+// the argument is; an unset optional field is an argument not given, so its default applies.
+// Units are PLR's: Celsius, Hz, and fractions for humidity and gas levels.
+//
+// Racks, sites and plates are as `pylabrobot/legacy/storage/server/v1/incubator.proto` has them: a
+// site by name in the racks the backend was told, in the order the device numbers its cassettes.
+// The backend addresses a site to the PLC as its rack's place in that order (from 1) and its key
+// in the rack (from 1), and reads the cassette's pitch and position count from the rack's model
+// ("liconic_rack_17mm_22"), so a rack must be one of `pylabrobot.legacy.storage.liconic.racks`.
+//
+// Regenerate with `make generate-rpc`.
+package pylabrobot.legacy.storage.liconic.server.v1;
+
+import "pylabrobot/legacy/storage/server/v1/incubator.proto";
+import "pylabrobot/resources/server/v1/types.proto";
+
+// The backend as the server has it.
+message Description {
+  // As `LiconicType` names it: "STX44_IC", say.
+  string model = 1;
+  // As the backend was last told them.
+  repeated pylabrobot.legacy.storage.server.v1.Rack racks = 2;
+  // Whether it has a barcode reader: without one, reading a barcode raises RuntimeError.
+  bool barcode_scanner = 3;
+}
+
+message FetchPlateToLoadingTrayRequest {
+  pylabrobot.legacy.storage.server.v1.Plate plate = 1;
+  optional bool read_barcode = 2;
+}
+
+message TakeInPlateRequest {
+  pylabrobot.legacy.storage.server.v1.Plate plate = 1;
+  pylabrobot.resources.server.v1.ResourceRef site = 2;
+  optional bool read_barcode = 3;
+}
+
+message MovePositionToPositionRequest {
+  pylabrobot.legacy.storage.server.v1.Plate plate = 1;
+  pylabrobot.resources.server.v1.ResourceRef dest_site = 2;
+  optional bool read_barcode = 3;
+}
+
+message ReadBarcodeInlineRequest {
+  // From 1.
+  int32 cassette = 1;
+  int32 plt_position = 2;
+}
+
+message Temperature {
+  double temperature = 1;
+}
+
+message Humidity {
+  double humidity = 1;
+}
+
+message Co2Level {
+  double co2_level = 1;
+}
+
+message N2Level {
+  double n2_level = 1;
+}
+
+message Frequency {
+  double frequency = 1;
+}
+
+message TurnSwapStationRequest {
+  bool home = 1;
+}
+
+message ShakerStatusResponse {
+  int32 status = 1;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done, with what it returned. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+  // A barcode it read: what a read returned, or what a move with `read_barcode` set on the plate.
+  optional pylabrobot.resources.server.v1.Barcode barcode = 3;
+  // What a call that returns a number returned.
+  optional double value = 4;
+}
+
+service LiconicService {
+  // The backend's model and racks.
+  rpc Describe(pylabrobot.legacy.storage.server.v1.Empty) returns (Description);
+
+  // A long call (one that waits for the PLC to be ready) that moves the device finishes on the
+  // server even if its client goes away, and waits for any move under way.
+  rpc Setup(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc Stop(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Empty);
+  rpc SetRacks(pylabrobot.legacy.storage.server.v1.SetRacksRequest) returns (pylabrobot.legacy.storage.server.v1.Empty);
+  rpc Initialize(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc OpenDoor(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc CloseDoor(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+
+  // The plate from its site to the transfer station (ST 1905).
+  rpc FetchPlateToLoadingTray(FetchPlateToLoadingTrayRequest) returns (stream Progress);
+  // The plate on the transfer station to a site (ST 1904).
+  rpc TakeInPlate(TakeInPlateRequest) returns (stream Progress);
+  rpc MovePositionToPosition(MovePositionToPositionRequest) returns (stream Progress);
+  rpc ReadBarcodeInline(ReadBarcodeInlineRequest) returns (stream Progress);
+  rpc ScanBarcode(pylabrobot.legacy.storage.server.v1.SiteRequest) returns (stream Progress);
+
+  rpc SetTemperature(Temperature) returns (stream Progress);
+  rpc GetTemperature(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc GetTargetTemperature(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc SetHumidity(Humidity) returns (stream Progress);
+  rpc GetHumidity(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc GetTargetHumidity(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc SetCo2Level(Co2Level) returns (stream Progress);
+  rpc GetCo2Level(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc GetTargetCo2Level(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc SetN2Level(N2Level) returns (stream Progress);
+  rpc GetN2Level(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+  rpc GetTargetN2Level(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Value);
+
+  rpc ShakerStatus(pylabrobot.legacy.storage.server.v1.Empty) returns (ShakerStatusResponse);
+  // Ends with the speed, in `value`.
+  rpc GetShakerSpeed(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+  rpc StartShaking(Frequency) returns (stream Progress);
+  rpc StopShaking(pylabrobot.legacy.storage.server.v1.Empty) returns (stream Progress);
+
+  rpc TurnSwapStation(TurnSwapStationRequest) returns (pylabrobot.legacy.storage.server.v1.Empty);
+  rpc CheckShovelSensor(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Flag);
+  rpc CheckTransferSensor(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Flag);
+  rpc CheckSecondTransferSensor(pylabrobot.legacy.storage.server.v1.Empty) returns (pylabrobot.legacy.storage.server.v1.Flag);
+}
