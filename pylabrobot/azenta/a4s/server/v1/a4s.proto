@@ -1,0 +1,240 @@
+syntax = "proto3";
+
+// An a4S server: the Azenta a4S sealers it holds, each called by its name. The calls are `A4S`'s
+// methods, each argument a field named as the argument is; an unset optional field is an argument
+// not given, so its default applies. `open` and `close` are `OpenShuttle` and `CloseShuttle`: a
+// `Close` call would give the generated Python client a `close(request)` that hides its own
+// `close()`.
+package pylabrobot.azenta.a4s.server.v1;
+
+// The exception a call raised, carried as a detail of the Connect error so the client raises the
+// same class. A class not listed goes as the nearest one it derives from.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_KEY = 4;  // KeyError
+  ERROR_KIND_TYPE = 5;  // TypeError
+  ERROR_KIND_NOT_IMPLEMENTED = 6;  // NotImplementedError
+  ERROR_KIND_CONNECTION = 7;  // ConnectionError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What it was raised with.
+  string message = 2;
+  // Its class's name, for a class that went as the nearest one listed.
+  string type_name = 3;
+}
+
+// `A4SStatus.SystemStatus`, numbered as the sealer numbers it.
+enum SystemStatus {
+  SYSTEM_STATUS_IDLE = 0;
+  SYSTEM_STATUS_SINGLE_CYCLE = 1;
+  SYSTEM_STATUS_REPEAT_CYCLE = 2;
+  SYSTEM_STATUS_ERROR = 3;
+  SYSTEM_STATUS_FINISH = 4;
+}
+
+// `A4SStatus.HeaterBlockStatus`, numbered as the sealer numbers it.
+enum HeaterBlockStatus {
+  HEATER_BLOCK_STATUS_HEATER_OFF = 0;
+  HEATER_BLOCK_STATUS_READY = 1;
+  HEATER_BLOCK_STATUS_HEATING = 2;
+  HEATER_BLOCK_STATUS_COOLING = 3;
+  HEATER_BLOCK_STATUS_CONVERGING = 4;
+}
+
+// `A4SStatus.SensorStatus`.
+message SensorStatus {
+  bool shuttle_middle_sensor = 1;
+  bool shuttle_open_sensor = 2;
+  bool shuttle_close_sensor = 3;
+  bool clean_door_sensor = 4;
+  bool seal_roll_sensor = 5;
+  bool heater_motor_up_sensor = 6;
+  bool heater_motor_down_sensor = 7;
+}
+
+// `A4SStatus`: one status message of the sealer's.
+message A4SStatus {
+  // In Celsius.
+  double current_temperature = 1;
+  SystemStatus system_status = 2;
+  HeaterBlockStatus heater_block_status = 3;
+  int32 error_code = 4;
+  int32 warning_code = 5;
+  SensorStatus sensor_status = 6;
+  int32 remaining_time = 7;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done, with what it returned. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+  // What the call returned, on `done`, for a call that returns a status.
+  optional A4SStatus status = 3;
+}
+
+// One sealer the server holds.
+message Sealer {
+  string name = 1;
+  // `A4S.port`: the serial port it is on.
+  string port = 2;
+  // `A4S.timeout`, in seconds.
+  int32 timeout = 3;
+}
+
+message DescribeRequest {
+}
+
+message DescribeResponse {
+  repeated Sealer sealers = 1;
+}
+
+message SetupRequest {
+  string name = 1;
+}
+
+message StopRequest {
+  string name = 1;
+}
+
+message SendCommandRequest {
+  string name = 1;
+  // As written to the serial port: `*00MO=zz!` say.
+  string command = 2;
+}
+
+message SendCommandResponse {
+}
+
+message ReadMessageRequest {
+  string name = 1;
+}
+
+message ReadMessageResponse {
+  string message = 1;
+}
+
+message RequestStatusRequest {
+  string name = 1;
+}
+
+message WaitForStatusRequest {
+  string name = 1;
+  repeated SystemStatus statuses = 2;
+}
+
+message WaitForShuttleOpenSensorRequest {
+  string name = 1;
+  bool shuttle_open = 2;
+  // In seconds.
+  optional double timeout = 3;
+}
+
+message SystemResetRequest {
+  string name = 1;
+}
+
+message SetHeaterRequest {
+  string name = 1;
+  bool on = 2;
+}
+
+message SetTimeRequest {
+  string name = 1;
+  double seconds = 2;
+}
+
+message SetTimeResponse {
+}
+
+message RequestRemainingTimeRequest {
+  string name = 1;
+}
+
+message RequestRemainingTimeResponse {
+  int32 remaining_time = 1;
+}
+
+message SealRequest {
+  string name = 1;
+  // In Celsius.
+  double temperature = 2;
+  // In seconds.
+  double duration = 3;
+}
+
+message OpenShuttleRequest {
+  string name = 1;
+}
+
+message CloseShuttleRequest {
+  string name = 1;
+}
+
+message SetTemperatureRequest {
+  string name = 1;
+  // In Celsius.
+  double temperature = 2;
+}
+
+message RequestCurrentTemperatureRequest {
+  string name = 1;
+}
+
+message RequestCurrentTemperatureResponse {
+  // In Celsius.
+  double temperature = 1;
+}
+
+message DeactivateRequest {
+  string name = 1;
+}
+
+// A call that waits on the sealer streams `Progress` and finishes on the server even if the client
+// goes away, except a call that only waits (`WaitForStatus`, `WaitForShuttleOpenSensor`, and
+// `SetTemperature`'s wait once it has sent the temperature), which is dropped. A sealer takes one
+// call at a time: a call waits for the one before it to finish.
+service A4SService {
+  // The sealers the server holds.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+  // Open the serial port and reset the sealer.
+  rpc Setup(SetupRequest) returns (stream Progress);
+  // Turn the heater off and close the serial port.
+  rpc Stop(StopRequest) returns (stream Progress);
+  // Write a command, as it is, to the sealer.
+  rpc SendCommand(SendCommandRequest) returns (SendCommandResponse);
+  // The next message the sealer sends.
+  rpc ReadMessage(ReadMessageRequest) returns (ReadMessageResponse);
+  // The sealer's next status.
+  rpc RequestStatus(RequestStatusRequest) returns (A4SStatus);
+  // Wait until the sealer's system status is one of these; its status then.
+  rpc WaitForStatus(WaitForStatusRequest) returns (stream Progress);
+  // Wait until the shuttle's open sensor says this; the status then.
+  rpc WaitForShuttleOpenSensor(WaitForShuttleOpenSensorRequest) returns (stream Progress);
+  // Reset the sealer and wait until it is idle.
+  rpc SystemReset(SystemResetRequest) returns (stream Progress);
+  // Turn the heater on or off and wait until the sealer is idle.
+  rpc SetHeater(SetHeaterRequest) returns (stream Progress);
+  // Set how long a seal presses.
+  rpc SetTime(SetTimeRequest) returns (SetTimeResponse);
+  // The seconds left of the running seal.
+  rpc RequestRemainingTime(RequestRemainingTimeRequest) returns (RequestRemainingTimeResponse);
+  // Heat to a temperature, press a seal for a duration, and wait until the cycle is done.
+  rpc Seal(SealRequest) returns (stream Progress);
+  // `A4S.open`: bring the shuttle out, to take a plate on or off.
+  rpc OpenShuttle(OpenShuttleRequest) returns (stream Progress);
+  // `A4S.close`: take the shuttle in.
+  rpc CloseShuttle(CloseShuttleRequest) returns (stream Progress);
+  // Heat the seal to a temperature and wait until it is there.
+  rpc SetTemperature(SetTemperatureRequest) returns (stream Progress);
+  // The heater's temperature.
+  rpc RequestCurrentTemperature(RequestCurrentTemperatureRequest) returns (RequestCurrentTemperatureResponse);
+  // Turn the heater off.
+  rpc Deactivate(DeactivateRequest) returns (stream Progress);
+}

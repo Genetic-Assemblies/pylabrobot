@@ -1894,6 +1894,23 @@
     "manager": "https://discuss.pylabrobot.org/u/rickwierenga"
   },
   {
+    "id": "roche-lightcycler-480-ii",
+    "needs_hardware_testing": true,
+    "vendor": "Roche",
+    "name": "LightCycler 480 II",
+    "kind": "qPCR machine",
+    "capabilities": [
+      "qPCR",
+      "thermocycling",
+      "fluorescence"
+    ],
+    "status": "basic",
+    "api": "pylabrobot.roche.lightcycler.LightCycler480",
+    "api_version": "v1",
+    "code_slug": "roche/lightcycler",
+    "doc_slug": "roche/lightcycler/hello-world"
+  },
+  {
     "id": "sartorius-entris2",
     "needs_hardware_testing": true,
     "vendor": "Sartorius",

@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+// Taught positions, and carrying plates between them.
+//
+// A position is a name the server keeps with a joint state: the Z column, shoulder, elbow and
+// wrist, and the rail on an arm with one. The jaws are the grip's. Positions are kept in a JSON
+// file, written whole each time one is taught or forgotten, and read when the server starts.
+//
+// A position is where a plate sits: taught with the gripper's tool point at the plate's bottom.
+// A grip says how to hold the plate: the jaws close `height` above the position, `width` apart,
+// and the arm approaches and leaves from `plate_height` above that. Every visit starts and ends
+// folded in the parking pose, and the rail moves only then.
+//
+// A carry is made of the calls the other services serve: `park`, `move_rail`,
+// `move_to_joint_state`, `pick_up_at_joint_state` and `drop_at_joint_state`.
+package pylabrobot.brooks.precise_flex.server.v1;
+
+import "pylabrobot/brooks/precise_flex/server/v1/types.proto";
+
+message Position {
+  string name = 1;
+  // Base (Z), shoulder, elbow and wrist; rail on an arm with one. Never the gripper.
+  JointState joint_state = 2;
+}
+
+// How to hold a plate: the arm grips it across its width, this far up from its bottom.
+message Grip {
+  // Across the plate where the jaws close, in mm.
+  double width = 1;
+  // From the plate's bottom to where the jaws close, in mm.
+  double height = 2;
+  // The plate's height, in mm: how far above a position to approach and leave it.
+  double plate_height = 3;
+}
+
+message ListRequest {}
+
+message ListResponse {
+  // By name.
+  repeated Position positions = 1;
+}
+
+message TeachRequest {
+  // The position's name; teaching a name already taught moves it.
+  string name = 1;
+  // Where it is. Unset: where the arm is now, as a person left it in freedrive say.
+  JointState joint_state = 2;
+}
+
+message TeachResponse {
+  Position position = 1;
+}
+
+message ForgetRequest {
+  string name = 1;
+}
+
+message ForgetResponse {}
+
+message CarryRequest {
+  // The position the plate is at.
+  string from_position = 1;
+  // The position to leave it at.
+  string to_position = 2;
+  Grip grip = 3;
+}
+
+message GetHoldingRequest {}
+
+message GetHoldingResponse {
+  // Whether the gripper holds a plate: the server's record, checked against the jaws' sensor.
+  // Unset when it does not know, as after a jaw move a client made itself.
+  optional bool holding = 1;
+}
+
+service PositionsService {
+  // The positions taught, by name.
+  rpc List(ListRequest) returns (ListResponse);
+  // Keep a joint state as a position, by name: the one given, or where the arm is now.
+  rpc Teach(TeachRequest) returns (TeachResponse);
+  rpc Forget(ForgetRequest) returns (ForgetResponse);
+  // Pick a plate up at one position and leave it at another. It runs on the server: it finishes
+  // even if the client goes away. A carry that fails leaves the plate where it was, in the
+  // gripper, or at the other position: GetHolding and a look say which.
+  rpc Carry(CarryRequest) returns (stream Progress);
+  rpc GetHolding(GetHoldingRequest) returns (GetHoldingResponse);
+}

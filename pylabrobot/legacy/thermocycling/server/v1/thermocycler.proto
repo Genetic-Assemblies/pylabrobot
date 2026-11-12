@@ -1,0 +1,215 @@
+syntax = "proto3";
+
+// A thermocycler server: the thermocyclers it holds, each called by its name, each driven by a
+// legacy `ThermocyclerBackend`. The calls are `ThermocyclerBackend`'s methods, each argument a
+// field named as the argument is. A backend's own keyword arguments beyond the interface's (a
+// ThermoFisher's `block_id` say, or an ODTC's `start_lid_temperature`), as `Thermocycler` passes
+// them on as `**backend_kwargs`, go as `backend_kwargs`: a JSON object, empty for none.
+package pylabrobot.legacy.thermocycling.server.v1;
+
+// The exception a call raised, carried as a detail of the Connect error so the client raises the
+// same class. A class not listed goes as the nearest one it derives from.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_KEY = 4;  // KeyError
+  ERROR_KIND_TYPE = 5;  // TypeError
+  ERROR_KIND_NOT_IMPLEMENTED = 6;  // NotImplementedError
+  ERROR_KIND_CONNECTION = 7;  // ConnectionError
+  ERROR_KIND_ASSERTION = 8;  // AssertionError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What it was raised with.
+  string message = 2;
+  // Its class's name, for a class that went as the nearest one listed.
+  string type_name = 3;
+}
+
+// `Step`: temperatures held for a time.
+message Step {
+  // In Celsius, one for each zone of the block.
+  repeated double temperature = 1;
+  // In seconds.
+  double hold_seconds = 2;
+  // In Celsius a second; unset is None.
+  optional double rate = 3;
+}
+
+// `Stage`: steps, run `repeats` times.
+message Stage {
+  repeated Step steps = 1;
+  int32 repeats = 2;
+}
+
+// `Protocol`: stages, run in order.
+message Protocol {
+  repeated Stage stages = 1;
+}
+
+// `LidStatus`.
+enum LidStatus {
+  LID_STATUS_IDLE = 0;
+  LID_STATUS_HOLDING_AT_TARGET = 1;
+}
+
+// `BlockStatus`.
+enum BlockStatus {
+  BLOCK_STATUS_IDLE = 0;
+  BLOCK_STATUS_HOLDING_AT_TARGET = 1;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+}
+
+// One thermocycler the server holds.
+message Thermocycler {
+  string name = 1;
+  // The class of its backend: `ExperimentalODTCBackend` say.
+  string backend = 2;
+}
+
+message DescribeRequest {
+}
+
+message DescribeResponse {
+  repeated Thermocycler thermocyclers = 1;
+}
+
+message SetupRequest {
+  string name = 1;
+  string backend_kwargs = 2;
+}
+
+message StopRequest {
+  string name = 1;
+}
+
+message StopResponse {
+}
+
+message OpenLidRequest {
+  string name = 1;
+  string backend_kwargs = 2;
+}
+
+message CloseLidRequest {
+  string name = 1;
+  string backend_kwargs = 2;
+}
+
+message SetBlockTemperatureRequest {
+  string name = 1;
+  // In Celsius, one for each zone.
+  repeated double temperature = 2;
+  string backend_kwargs = 3;
+}
+
+message SetLidTemperatureRequest {
+  string name = 1;
+  // In Celsius, one for each zone.
+  repeated double temperature = 2;
+  string backend_kwargs = 3;
+}
+
+message DeactivateBlockRequest {
+  string name = 1;
+  string backend_kwargs = 2;
+}
+
+message DeactivateBlockResponse {
+}
+
+message DeactivateLidRequest {
+  string name = 1;
+  string backend_kwargs = 2;
+}
+
+message DeactivateLidResponse {
+}
+
+message RunProtocolRequest {
+  string name = 1;
+  Protocol protocol = 2;
+  // In uL.
+  double block_max_volume = 3;
+  string backend_kwargs = 4;
+}
+
+// A status query: what it asks of the thermocycler of a name.
+message GetRequest {
+  string name = 1;
+  string backend_kwargs = 2;
+}
+
+message TemperatureResponse {
+  // In Celsius, one for each zone.
+  repeated double temperature = 1;
+}
+
+message GetLidOpenResponse {
+  bool open = 1;
+}
+
+message GetLidStatusResponse {
+  LidStatus status = 1;
+}
+
+message GetBlockStatusResponse {
+  BlockStatus status = 1;
+}
+
+message GetHoldTimeResponse {
+  // In seconds.
+  double seconds = 1;
+}
+
+// An index, from 0, or a count.
+message IntegerResponse {
+  int32 value = 1;
+}
+
+// A call that waits on the thermocycler streams `Progress`, and finishes on the server even if the
+// client goes away. `RunProtocol` is done when the backend's `run_protocol` returns: at once for a
+// backend that starts the run and returns (the ODTC's, the Opentrons'), and at its end for one that
+// waits; the status queries say where a run has got.
+service ThermocyclerService {
+  // The thermocyclers the server holds.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+  // Connect to the thermocycler and initialize it.
+  rpc Setup(SetupRequest) returns (stream Progress);
+  // Stop what it is running, and let it go.
+  rpc Stop(StopRequest) returns (StopResponse);
+  // Open the lid, so a plate can be put on the block or taken off it.
+  rpc OpenLid(OpenLidRequest) returns (stream Progress);
+  // Close the lid.
+  rpc CloseLid(CloseLidRequest) returns (stream Progress);
+  rpc SetBlockTemperature(SetBlockTemperatureRequest) returns (stream Progress);
+  rpc SetLidTemperature(SetLidTemperatureRequest) returns (stream Progress);
+  rpc DeactivateBlock(DeactivateBlockRequest) returns (DeactivateBlockResponse);
+  rpc DeactivateLid(DeactivateLidRequest) returns (DeactivateLidResponse);
+  rpc RunProtocol(RunProtocolRequest) returns (stream Progress);
+  rpc GetBlockCurrentTemperature(GetRequest) returns (TemperatureResponse);
+  rpc GetBlockTargetTemperature(GetRequest) returns (TemperatureResponse);
+  rpc GetLidCurrentTemperature(GetRequest) returns (TemperatureResponse);
+  rpc GetLidTargetTemperature(GetRequest) returns (TemperatureResponse);
+  rpc GetLidOpen(GetRequest) returns (GetLidOpenResponse);
+  rpc GetLidStatus(GetRequest) returns (GetLidStatusResponse);
+  rpc GetBlockStatus(GetRequest) returns (GetBlockStatusResponse);
+  // The seconds left of the current step.
+  rpc GetHoldTime(GetRequest) returns (GetHoldTimeResponse);
+  // From 0.
+  rpc GetCurrentCycleIndex(GetRequest) returns (IntegerResponse);
+  rpc GetTotalCycleCount(GetRequest) returns (IntegerResponse);
+  // From 0.
+  rpc GetCurrentStepIndex(GetRequest) returns (IntegerResponse);
+  rpc GetTotalStepCount(GetRequest) returns (IntegerResponse);
+}

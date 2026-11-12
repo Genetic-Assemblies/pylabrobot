@@ -108,6 +108,12 @@ class PreciseFlexGripper:
         f"finger_speed_percent must be between 0 and 100, got {finger_speed_percent}"
       )
     units = self._mm_to_firmware_units(plate_width)
+    await self._unchecked_fw_set_grasp_data(units, finger_speed_percent, grasp_force)
+
+  async def _unchecked_fw_set_grasp_data(
+    self, units: float, finger_speed_percent: float, grasp_force: float
+  ) -> None:
+    """Send ``GraspData``: the gripper axis position ``pickplate`` closes to. Nothing is guarded."""
     await self._driver.send_command(f"GraspData {units} {finger_speed_percent} {grasp_force}")
 
   # -- conversions: the wire counts in the axis's units, the driver speaks mm ----------------------

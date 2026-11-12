@@ -248,6 +248,8 @@ class PreciseFlexArm:
     self.link_2: Optional[LinkBody] = None
     self.profile_index: int = 1
     self.station_index: int = 1
+    # How far above the station a pick or a place approaches and leaves it, in mm.
+    self.station_z_clearance: float = 100
     self.horizontal_compliance: bool = False
     self.horizontal_compliance_torque: int = 0
 
@@ -1997,7 +1999,9 @@ class PreciseFlexArm:
 
   async def _unchecked_fw_set_grip_detail(self):
     """Configure a default vertical station type for pick up and drop operations."""
-    await self._driver.send_command(f"StationType {self.station_index} 1 0 100 0 10")
+    await self._driver.send_command(
+      f"StationType {self.station_index} 1 0 {self.station_z_clearance} 0 10"
+    )
 
   async def _unchecked_fw_pick_plate(self) -> None:
     """Send ``pickplate`` for the station. Nothing is guarded.

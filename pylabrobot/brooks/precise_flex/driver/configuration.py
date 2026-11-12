@@ -344,7 +344,18 @@ def read_configuration(path: str) -> Dict[str, Any]:
   """
   with open(path, encoding="utf-8") as f:
     saved = json.load(f)
+  return restore_configuration(saved)
 
+
+def restore_configuration(saved: Dict[str, Any]) -> Dict[str, Any]:
+  """A saved configuration, as JSON holds it, back in the dataclasses it was written from.
+
+  Args:
+    saved: what `PreciseFlexDriver.save_configuration` writes, read as JSON.
+
+  Returns:
+    As `read_configuration` returns it.
+  """
   features = {name: saved[name] for name in DEVICE_FEATURE_CONFIGURATIONS if name in saved}
   read: Dict[str, Any] = {
     name: _restore(DEVICE_FEATURE_CONFIGURATIONS[name], value) for name, value in features.items()

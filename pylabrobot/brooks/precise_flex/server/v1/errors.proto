@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+// The exception a call raised, carried as a detail of the Connect error so the client raises the
+// same class, with the same message.
+package pylabrobot.brooks.precise_flex.server.v1;
+
+import "pylabrobot/brooks/precise_flex/server/v1/types.proto";
+
+// A class not listed goes as the nearest one it derives from.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  // `PreciseFlexError`, and each subclass of it, made again from `replycode` and `message`.
+  ERROR_KIND_PRECISE_FLEX = 1;
+  ERROR_KIND_OUT_OF_RANGE_OF_MOTION = 2;  // OutOfRangeOfMotionError, its axes in `axes`
+  ERROR_KIND_IK = 3;  // kinematics.IKError
+  ERROR_KIND_OPERATION_INTERRUPTED = 4;  // OperationInterrupted
+  ERROR_KIND_RESOURCE_SERVER = 5;  // the resource server's ServerError, as a RuntimeError
+  ERROR_KIND_NOT_IMPLEMENTED = 6;  // NotImplementedError
+  ERROR_KIND_TIMEOUT = 7;  // TimeoutError
+  ERROR_KIND_CONNECTION = 8;  // ConnectionError
+  ERROR_KIND_KEY = 9;  // KeyError
+  ERROR_KIND_INDEX = 10;  // IndexError
+  ERROR_KIND_ASSERTION = 11;  // AssertionError
+  ERROR_KIND_TYPE = 12;  // TypeError
+  ERROR_KIND_VALUE = 13;  // ValueError
+  ERROR_KIND_RUNTIME = 14;  // RuntimeError
+  ERROR_KIND_ATTRIBUTE = 15;  // AttributeError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // `str()` of it, or for a `PreciseFlexError`, what it was made with.
+  string message = 2;
+  // Its class's name, for a class that went as the nearest one listed.
+  string type_name = 3;
+  // A `PreciseFlexError`'s reply code.
+  int64 replycode = 4;
+  // An `OutOfRangeOfMotionError`'s axes: each one's position, and the limits it is outside.
+  JointState axis_positions = 5;
+  JointLimits axis_limits = 6;
+}

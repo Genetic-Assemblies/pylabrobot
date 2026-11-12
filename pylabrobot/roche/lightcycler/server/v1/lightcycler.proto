@@ -1,0 +1,240 @@
+syntax = "proto3";
+
+// The Roche LightCycler 480 II, served over Connect. The calls are `LightCycler480`'s methods, each
+// argument a field named as the argument is; an unset field with presence is an argument not
+// given, so its default applies. Units are PLR's: Celsius, seconds, uL.
+//
+// An experiment runs on the server, not in the call that started it, and is known by its id, 32
+// hex digits the client may choose: `RunExperiment` with the id of one already started streams
+// that one rather than starting another, so a client that lost its connection asks again with the
+// same id and rejoins it; `WatchExperiment` follows one by id from anywhere.
+//
+// Regenerate with `make generate-rpc`.
+package pylabrobot.roche.lightcycler.server.v1;
+
+message Empty {}
+
+// ============================================================================================
+// What the instrument reports
+// ============================================================================================
+
+message Status {
+  // 6 not ready (the tray open, or no plate), 7 running, 10 idle.
+  int32 state = 1;
+  string controller = 2;
+  string firmware_version = 3;
+  // Unset when none is running.
+  optional string running_experiment = 4;
+}
+
+message TrayState {
+  // Whether the tray is out.
+  bool open = 1;
+  // Whether the tray is in with a plate on it.
+  bool plate_loaded = 2;
+  // The loaded plate's barcode; empty when it has none, or none was read.
+  string barcode = 3;
+}
+
+message RequestLogsRequest {
+  optional int64 since_id = 1;
+  optional int32 limit = 2;
+}
+
+message LogEntry {
+  int64 id = 1;
+  // Seconds since the epoch.
+  double received_at = 2;
+  // "event" or "trace".
+  string kind = 3;
+  // The instrument's clock.
+  string timestamp = 4;
+  int32 code = 5;
+  repeated string data = 6;
+}
+
+message Logs {
+  // Oldest first.
+  repeated LogEntry entries = 1;
+}
+
+// ============================================================================================
+// The tray
+// ============================================================================================
+
+message MoveTrayRequest {
+  // How long it may take to move, in seconds.
+  optional double timeout = 1;
+}
+
+// ============================================================================================
+// Experiments
+// ============================================================================================
+
+// A thermocycling step: `LightCyclerStep`, or a plain `Step` as one that reads nothing.
+message Step {
+  // In Celsius; one value, the block has one zone.
+  repeated double temperature = 1;
+  double hold_seconds = 2;
+  // Celsius per second.
+  optional double rate = 3;
+  bool acquire = 4;
+  // "sybr_green", "hex", "rox" or "cy5".
+  optional string filter_set = 5;
+  optional int32 exposure = 6;
+}
+
+message Stage {
+  repeated Step steps = 1;
+  int32 repeats = 2;
+}
+
+message Protocol {
+  repeated Stage stages = 1;
+}
+
+message ExperimentRequest {
+  Protocol protocol = 1;
+  optional int32 well_count = 2;
+  // In uL.
+  optional int32 volume = 3;
+  // 32 hex digits. `RunExperiment` and `StartExperiment` are retried safely with the same one.
+  optional string experiment_id = 4;
+}
+
+message StartExperimentResponse {
+  string experiment_id = 1;
+}
+
+enum ExperimentStatus {
+  EXPERIMENT_STATUS_UNSPECIFIED = 0;
+  EXPERIMENT_STATUS_PENDING = 1;
+  EXPERIMENT_STATUS_RUNNING = 2;
+  EXPERIMENT_STATUS_COMPLETE = 3;
+  EXPERIMENT_STATUS_ERROR = 4;
+}
+
+// One fluorescence read of every well.
+message Acquisition {
+  // From 1 in the experiment.
+  int32 number = 1;
+  // From 0.
+  int32 stage_index = 2;
+  // The repeat of the stage, from 0.
+  int32 cycle = 3;
+  // From 0.
+  int32 step_index = 4;
+  // The block's, as it was read, in Celsius.
+  double temperature = 5;
+  // Since the run started, in seconds.
+  double time = 6;
+  string filter_set = 7;
+  int32 ref_channel = 8;
+  // Each well's raw fluorescence, in the instrument's well order.
+  repeated int32 values = 9;
+}
+
+message Experiment {
+  string id = 1;
+  ExperimentStatus status = 2;
+  Protocol protocol = 3;
+  int32 well_count = 4;
+  int32 volume = 5;
+  // Seconds since the epoch.
+  double created_at = 6;
+  optional double finished_at = 7;
+  optional string error = 8;
+  int32 acquisitions_total = 9;
+  repeated Acquisition acquisitions = 10;
+}
+
+// An experiment as it is now, sent when a stream starts, each time it changes, and every few
+// seconds besides. `experiment.acquisitions` holds only the reads not yet sent on this stream; the
+// first update holds every read so far. The last update is the experiment finished.
+message ExperimentUpdate {
+  Experiment experiment = 1;
+}
+
+message ExperimentId {
+  string experiment_id = 1;
+}
+
+message ListExperimentsRequest {
+  optional int32 limit = 1;
+}
+
+message ExperimentSummary {
+  string id = 1;
+  ExperimentStatus status = 2;
+  double created_at = 3;
+  optional double finished_at = 4;
+  optional string error = 5;
+  int32 acquisitions_done = 6;
+  int32 acquisitions_total = 7;
+}
+
+message ExperimentList {
+  // Newest first.
+  repeated ExperimentSummary experiments = 1;
+}
+
+service LightCycler480Service {
+  // Connect to the instrument, if the server is not connected.
+  rpc Setup(Empty) returns (Empty);
+
+  rpc RequestStatus(Empty) returns (Status);
+  rpc RequestTrayState(Empty) returns (TrayState);
+  rpc RequestLogs(RequestLogsRequest) returns (Logs);
+
+  // Have the tray out, for a plate to be put on or taken off: press its button if it is in, and
+  // return once it is out. Does nothing when it is out already.
+  rpc OpenTray(MoveTrayRequest) returns (Empty);
+  // Have the tray in: press its button if it is out, and return once it is in.
+  rpc CloseTray(MoveTrayRequest) returns (Empty);
+
+  // Start an experiment, or find the one started with this id, and return its id at once.
+  rpc StartExperiment(ExperimentRequest) returns (StartExperimentResponse);
+  // Start an experiment, or join the one started with this id, and stream it until it has
+  // finished. The server finishes it even if the client goes away.
+  rpc RunExperiment(ExperimentRequest) returns (stream ExperimentUpdate);
+  // The experiment with this id, streamed as `RunExperiment` streams it.
+  rpc WatchExperiment(ExperimentId) returns (stream ExperimentUpdate);
+  // The experiment with this id as it is now, with every read so far.
+  rpc GetExperiment(ExperimentId) returns (Experiment);
+  rpc ListExperiments(ListExperimentsRequest) returns (ExperimentList);
+}
+
+// ============================================================================================
+// How a call fails
+// ============================================================================================
+
+// The exception a call raised, carried as a detail of the Connect error so the client raises the
+// same class. A class not listed goes as the nearest one it derives from.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_KEY = 4;  // KeyError
+  ERROR_KIND_CONNECTION = 5;  // ConnectionError
+  ERROR_KIND_LIGHTCYCLER = 6;  // LightCyclerError
+  ERROR_KIND_COMMAND_FAILED = 7;  // CommandFailedError
+  ERROR_KIND_PROTOCOL = 8;  // LightCyclerProtocolError
+  ERROR_KIND_EXPERIMENT_FAILED = 9;  // ExperimentFailedError
+  ERROR_KIND_LIGHTCYCLER_TIMEOUT = 10;  // LightCyclerTimeoutError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What it was raised with.
+  string message = 2;
+  // `CommandFailedError`, `LightCyclerTimeoutError`: the command's name; `CommandFailedError`: the
+  // fields of the instrument's answer.
+  string command = 3;
+  repeated string fields = 4;
+  // `ExperimentFailedError`.
+  string experiment_id = 5;
+  string reason = 6;
+  // `LightCyclerTimeoutError`: how long was waited, in seconds.
+  optional double timeout = 7;
+}

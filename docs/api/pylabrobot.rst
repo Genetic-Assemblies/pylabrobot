@@ -41,5 +41,6 @@ Manufacturers
     pylabrobot.opentrons
     pylabrobot.qinstruments
     pylabrobot.revvity
+    pylabrobot.roche
     pylabrobot.sartorius
     pylabrobot.thermo_fisher

@@ -10,7 +10,7 @@ makes itself known: override the method that sends it, on the feature that owns 
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from pylabrobot.brooks.precise_flex.driver.configuration import (
   PreciseFlexConfiguration,
@@ -18,6 +18,7 @@ from pylabrobot.brooks.precise_flex.driver.configuration import (
 )
 from pylabrobot.brooks.precise_flex.driver.features.arm import PreciseFlexArm
 from pylabrobot.brooks.precise_flex.driver.features.gripper import PreciseFlexGripper
+from pylabrobot.brooks.precise_flex.driver.features.rail import PreciseFlexRail
 from pylabrobot.brooks.precise_flex.driver.master import PreciseFlexDriver
 from pylabrobot.brooks.precise_flex.kinematics import JointState, PreciseFlexAxis
 from pylabrobot.resources.resource import Resource
@@ -33,6 +34,9 @@ class _SimulatedArm(PreciseFlexArm):
     # Set at discovery, once the soft limits and the parking pose are known.
     self.simulated_joint_state: JointState = {}
     self.simulated_speed_percent = 100.0
+    self.simulated_freedrive = False
+    # Each station's joint state, as `locAngles` sets it.
+    self.simulated_stations: Dict[int, JointState] = {}
 
   async def _wait_for_eom(self, *args: Any, **kwargs: Any) -> None:
     """A simulated move is over as soon as it is sent."""
@@ -56,8 +60,43 @@ class _SimulatedArm(PreciseFlexArm):
   async def _request_speed(self) -> float:
     return self.simulated_speed_percent
 
+  async def start_freedrive_mode(self, free_axes: Optional[List[int]] = None) -> None:
+    """A simulated arm in freedrive stands wherever `simulated_joint_state` is set to."""
+    self.simulated_freedrive = True
+
   async def stop_freedrive_mode(self) -> None:
-    """A simulated arm is never in freedrive."""
+    """Leave freedrive: the arm holds where it was left."""
+    self.simulated_freedrive = False
+
+  async def stop_zero_torque(self) -> None:
+    """A simulated arm is never in zero torque."""
+
+  async def _unchecked_fw_set_joint_angles(
+    self, station_index: int, joint_position: JointState
+  ) -> None:
+    self.simulated_stations[station_index] = dict(joint_position)
+
+  async def _unchecked_fw_set_grip_detail(self) -> None:
+    """A simulated station is always approached from above."""
+
+  async def _unchecked_fw_pick_plate(self) -> None:
+    """Go to the station and close the jaws to the grasp width: a plate is always there."""
+    station = self.simulated_stations[self.station_index]
+    self.simulated_joint_state.update(
+      {axis: value for axis, value in station.items() if axis != PreciseFlexAxis.GRIPPER}
+    )
+    gripper = cast(_SimulatedGripper, self._driver.gripper)
+    self.simulated_joint_state[PreciseFlexAxis.GRIPPER] = gripper.simulated_grasp_units
+
+  async def _unchecked_fw_place_plate(self) -> None:
+    """Go to the station and open the jaws all the way."""
+    station = self.simulated_stations[self.station_index]
+    self.simulated_joint_state.update(
+      {axis: value for axis, value in station.items() if axis != PreciseFlexAxis.GRIPPER}
+    )
+    configuration = self._driver.gripper.configuration
+    assert configuration is not None
+    self.simulated_joint_state[PreciseFlexAxis.GRIPPER] = configuration.soft_limit_range[1]
 
   async def halt(self) -> None:
     """A simulated move is never under way."""
@@ -69,6 +108,8 @@ class _SimulatedGripper(PreciseFlexGripper):
   def __init__(self, driver: PreciseFlexDriver, arm: _SimulatedArm, **kwargs: Any) -> None:
     super().__init__(driver, **kwargs)
     self._arm = arm
+    # The gripper axis position `pickplate` closes to, as `GraspData` sets it.
+    self.simulated_grasp_units = self.closed_gripper_position
 
   async def _unchecked_fw_grasp_plate(
     self, units: float, speed_percent: float, force: float
@@ -78,6 +119,33 @@ class _SimulatedGripper(PreciseFlexGripper):
 
   async def _unchecked_fw_release_plate(self, units: float, speed_percent: float) -> None:
     self._arm.simulated_joint_state[PreciseFlexAxis.GRIPPER] = units
+
+  async def _unchecked_fw_set_grasp_data(
+    self, units: float, finger_speed_percent: float, grasp_force: float
+  ) -> None:
+    self.simulated_grasp_units = units
+
+  async def sense_fully_closed(self) -> bool:
+    """Whether the jaws stand within 2 mm of the closed end of their travel."""
+    if self._is_dual_gripper:
+      raise ValueError("sense_fully_closed is only valid for single gripper robots.")
+    closed = self.configuration.soft_limit_range[0] if self.configuration else 0.0
+    return self._arm.simulated_joint_state[PreciseFlexAxis.GRIPPER] <= closed + 2.0
+
+
+class _SimulatedRail(PreciseFlexRail):
+  """A rail that stands at the arm's held rail position: a rail move sets it."""
+
+  def __init__(self, driver: PreciseFlexDriver, arm: _SimulatedArm) -> None:
+    super().__init__(driver)
+    self._arm = arm
+    self._stations: Dict[int, float] = {}
+
+  async def _unchecked_fw_set_rail_position(self, station_id: int, rail_position: float) -> None:
+    self._stations[station_id] = rail_position
+
+  async def _unchecked_fw_move_rail(self, station_id: int, mode: int = 1) -> None:
+    self._arm.simulated_joint_state[PreciseFlexAxis.RAIL] = self._stations[station_id]
 
 
 class PreciseFlexSimulationDriver(PreciseFlexDriver):
@@ -165,6 +233,14 @@ class PreciseFlexSimulationDriver(PreciseFlexDriver):
         PreciseFlexAxis.GRIPPER: configuration.gripper.soft_limit_range[1],
       }
     return configuration
+
+  def _adopt_configuration(self, config: PreciseFlexConfiguration) -> None:
+    """Adopt it as the real driver does, with a simulated rail on an arm declared with one."""
+    super()._adopt_configuration(config)
+    if self.rail is not None and not isinstance(self.rail, _SimulatedRail):
+      rail = _SimulatedRail(self, self._simulated_arm)
+      rail.configuration = self.rail.configuration
+      self.rail = rail
 
   async def _setup_vision(self, vision_host: Optional[str]) -> None:
     """A simulated arm has no vision server."""

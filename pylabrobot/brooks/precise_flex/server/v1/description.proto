@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+// What a client keeps of a served arm, so what the device's attributes hold reads without a call:
+// its configuration, its settings, and the resources its parts are. The server says when it
+// changed: every response carries the `precise-flex-description-revision` header, and a client
+// whose revision differs asks for it again.
+package pylabrobot.brooks.precise_flex.server.v1;
+
+import "pylabrobot/brooks/precise_flex/server/v1/types.proto";
+import "pylabrobot/resources/server/v1/types.proto";
+
+message DescribeRequest {}
+
+message Description {
+  string name = 1;
+  // "PreciseFlex400".
+  string model = 2;
+  // The device's own size, in mm: the base plate it stands on.
+  double size_x = 3;
+  double size_y = 4;
+  double size_z = 5;
+  // Every configuration the driver holds, as `save_configuration` writes it; unset before setup.
+  optional string configuration_json = 6;
+  // Whether it has a rail, and a vision feature; known once setup has run.
+  bool has_rail = 7;
+  bool has_vision = 8;
+  // The vision feature's `VisionConfiguration`, as JSON; unset without one.
+  optional string vision_configuration_json = 9;
+  bool vision_server_connected = 10;
+  GripperDescription gripper = 11;
+  Settings settings = 12;
+  // Its parts on the resource server the PreciseFlex server keeps them in; unset without one, and
+  // before setup.
+  Resources resources = 13;
+  // Whether the gripper holds a plate, as the server last knows: a pick-up closed on one and no
+  // drop or jaw move has followed. Unset when it does not know.
+  optional bool holding = 14;
+}
+
+message GripperDescription {
+  // The gripper axis's position, in the controller's units, at the narrow end of the jaws' range.
+  double closed_gripper_position = 1;
+  // How far apart the jaws can stand, in mm.
+  Range jaw_width_range = 2;
+  bool is_dual_gripper = 3;
+}
+
+message Resources {
+  pylabrobot.resources.server.v1.ResourceRef device = 1;
+  pylabrobot.resources.server.v1.ResourceRef base_plate = 2;
+  // `arm.resource`: the carriage on the Z column.
+  pylabrobot.resources.server.v1.ResourceRef arm = 3;
+  pylabrobot.resources.server.v1.ResourceRef link_1 = 4;
+  pylabrobot.resources.server.v1.ResourceRef link_2 = 5;
+  pylabrobot.resources.server.v1.ResourceRef gripper = 6;
+}
+
+// The defaults the arm's features use where a call names none. A server reads them from its
+// settings file, as JSON; anything not in it keeps the code's default. A client reads them and
+// cannot set them.
+message Settings {
+  ArmSettings arm = 1;
+  GripperSettings gripper = 2;
+}
+
+message ArmSettings {
+  // Where `park()` goes.
+  JointState parking_position = 1;
+  optional int64 profile_index = 2;
+  optional int64 station_index = 3;
+  // How far above a station a pick-up or a drop approaches and leaves it, in mm.
+  optional double station_z_clearance = 4;
+  optional bool horizontal_compliance = 5;
+  optional int64 horizontal_compliance_torque = 6;
+  optional double default_recovery_speed_percent = 7;
+  optional int64 default_ztouch_search_speed_percent = 8;
+  optional double default_ztouch_approach_speed_percent = 9;
+}
+
+message GripperSettings {
+  optional double default_finger_speed_percent = 1;
+  optional double default_grasp_force = 2;
+}

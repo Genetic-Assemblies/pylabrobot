@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+// What the served legacy incubator backends share (`CytomatBackend`, `ExperimentalLiconicBackend`):
+// their racks, the plates and sites their calls take, and how a call fails.
+//
+// A backend is told its racks (`IncubatorBackend.set_racks`), in the order the device numbers
+// them; a site is named in them by a `ResourceRef` by name: `NameRef{root: <rack name>, name: <site
+// name>}`, or with `root` empty when the site's name is unique among the racks. `Describe` gives
+// every name. The server holds no plates: a call that takes a plate is given where it is, and the
+// server puts one of its name there for the call.
+//
+// Regenerate with `make generate-rpc`.
+package pylabrobot.legacy.storage.server.v1;
+
+import "pylabrobot/resources/server/v1/types.proto";
+
+message Empty {}
+
+message Flag {
+  bool value = 1;
+}
+
+message Value {
+  double value = 1;
+}
+
+message Text {
+  string value = 1;
+}
+
+// A site of a rack.
+message Site {
+  string name = 1;
+  // Its key in the rack, from 0 at the bottom.
+  int32 index = 2;
+  // Its height: the tallest plate it takes, in mm.
+  double size_z = 3;
+}
+
+message Rack {
+  string name = 1;
+  string model = 2;
+  // Bottom first.
+  repeated Site sites = 3;
+}
+
+message SetRacksRequest {
+  // Each rack as PLR serializes a plate carrier (JSON), in the order the device numbers them. Any
+  // plates in them are left out.
+  repeated string racks = 1;
+}
+
+// A plate a call takes: of this name, in the site `site` names, or nowhere in the racks (on the
+// loading tray) when `site` is unset.
+message Plate {
+  string name = 1;
+  optional pylabrobot.resources.server.v1.ResourceRef site = 2;
+  optional pylabrobot.resources.server.v1.Barcode barcode = 3;
+}
+
+message SiteRequest {
+  pylabrobot.resources.server.v1.ResourceRef site = 1;
+}
+
+// The exception a call raised, carried as a detail of the Connect error. The client raises the
+// class `type_name` names when it knows it (the device's own errors), and otherwise the one
+// `kind` names.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_KEY = 4;  // KeyError
+  ERROR_KIND_TYPE = 5;  // TypeError
+  ERROR_KIND_NOT_IMPLEMENTED = 6;  // NotImplementedError
+  ERROR_KIND_CONNECTION = 7;  // ConnectionError
+  ERROR_KIND_ASSERTION = 8;  // AssertionError
+  ERROR_KIND_ATTRIBUTE = 9;  // AttributeError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What `str()` of it says.
+  string message = 2;
+  // Its class's name: "CytomatTransferStationOccupiedError", say.
+  string type_name = 3;
+}

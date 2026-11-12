@@ -184,7 +184,8 @@ class A4S:
     return await self.wait_for_status({A4SStatus.SystemStatus.idle})
 
   async def set_time(self, seconds: float):
-    deciseconds = seconds * 10
+    # The A4S takes tenths of a second as an integer: 1.5 s is 0015.
+    deciseconds = round(seconds * 10)
     if not (0 <= deciseconds <= 9999):
       raise ValueError("Time out of range. Please enter a value between 0 and 9999.")
     command = f"*00DT={deciseconds:04d}zz!"
