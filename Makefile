@@ -71,6 +71,10 @@ generate-rpc:
 	$(BIN)python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. \
 		--connectrpc_out=. --connectrpc_opt=protobuf=google \
 		pylabrobot/hamilton/heater_shaker/server/v1/*.proto
+	$(BIN)python -m pylabrobot.brooks.precise_flex.server.generate
+	$(BIN)python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. \
+		--connectrpc_out=. --connectrpc_opt=protobuf=google \
+		pylabrobot/brooks/precise_flex/server/v1/*.proto
 
 clear-pyc:
 	find . -name "*.pyc" | xargs rm

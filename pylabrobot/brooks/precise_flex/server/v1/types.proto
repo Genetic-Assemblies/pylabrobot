@@ -1,0 +1,218 @@
+syntax = "proto3";
+
+// What the PreciseFlex server's services share: the wire's conventions, the arm's own enums, and
+// the messages its values travel as.
+//
+// Every request has one field per argument of the Python method it calls, named as the argument
+// is. The conventions a client keeps to:
+// - An unset field with presence is an argument not given: the method's default applies. An
+//   argument that may be None and defaults to something else is an `Optional...` message, set
+//   with `value` unset for None.
+// - A list that may be absent is a `...List` message holding `values`.
+// - A named value is the enum value of the enum's prefix and the name upper-cased: "cw" is
+//   `WRIST_CW`.
+// - A result is a response's `value`; a tuple is its `values`, in order.
+// Units are PLR's: mm, seconds, degrees, percent.
+package pylabrobot.brooks.precise_flex.server.v1;
+
+// ============================================================================================
+// The arm's named values
+// ============================================================================================
+
+// Which side of the shoulder the elbow is on.
+enum ElbowOrientation {
+  ELBOW_ORIENTATION_UNSPECIFIED = 0;
+  ELBOW_ORIENTATION_RIGHT = 1;  // "right"
+  ELBOW_ORIENTATION_LEFT = 2;  // "left"
+}
+
+// Which way the wrist is turned.
+enum Wrist {
+  WRIST_UNSPECIFIED = 0;
+  WRIST_CW = 1;  // "cw"
+  WRIST_CCW = 2;  // "ccw"
+}
+
+// How the controller replies.
+enum ResponseMode {
+  RESPONSE_MODE_UNSPECIFIED = 0;
+  RESPONSE_MODE_PC = 1;  // "pc"
+  RESPONSE_MODE_VERBOSE = 2;  // "verbose"
+}
+
+// Which of the arm's servers a command goes to.
+enum CommandServer {
+  COMMAND_SERVER_UNSPECIFIED = 0;
+  COMMAND_SERVER_CONTROLLER = 1;  // "controller"
+  COMMAND_SERVER_VISION = 2;  // "vision"
+}
+
+// A camera, by where it is mounted.
+enum CameraName {
+  CAMERA_NAME_UNSPECIFIED = 0;
+  CAMERA_NAME_FRONT = 1;  // "front"
+  CAMERA_NAME_BOTTOM = 2;  // "bottom"
+}
+
+// An axis, as `PreciseFlexAxis` numbers it.
+enum Axis {
+  AXIS_UNSPECIFIED = 0;
+  AXIS_BASE = 1;  // the Z column, mm
+  AXIS_SHOULDER = 2;  // degrees
+  AXIS_ELBOW = 3;  // degrees
+  AXIS_WRIST = 4;  // degrees
+  AXIS_GRIPPER = 5;  // the jaws, in the controller's units
+  AXIS_RAIL = 6;  // mm
+}
+
+// ============================================================================================
+// Values
+// ============================================================================================
+
+message Coordinate {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+// Degrees about each axis.
+message Rotation {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+// Where each axis is, in its own units: the base (the Z column), gripper and rail in mm, the
+// shoulder, elbow and wrist in degrees. An unset axis is one not given.
+message JointState {
+  optional double base = 1;
+  optional double shoulder = 2;
+  optional double elbow = 3;
+  optional double wrist = 4;
+  optional double gripper = 5;
+  optional double rail = 6;
+}
+
+message Range {
+  double low = 1;
+  double high = 2;
+}
+
+// Each axis's limits; an unset axis has none reported.
+message JointLimits {
+  optional Range base = 1;
+  optional Range shoulder = 2;
+  optional Range elbow = 3;
+  optional Range wrist = 4;
+  optional Range gripper = 5;
+  optional Range rail = 6;
+}
+
+// `PreciseFlexCartesianPose`: where the gripper is and which way it faces.
+message CartesianPose {
+  Coordinate location = 1;
+  Rotation rotation = 2;
+  optional double rail_position = 3;
+  ElbowOrientation orientation = 4;  // unspecified: not given
+  Wrist wrist = 5;  // unspecified: not given
+}
+
+// `PreciseFlexPose`: where every joint of the arm is, and its gripper.
+message Pose {
+  Coordinate shoulder_joint_location = 1;
+  Coordinate elbow_joint_location = 2;
+  Coordinate wrist_joint_location = 3;
+  CartesianPose gripper_pose = 4;
+  JointState joints = 5;
+}
+
+// `MotionProfile`.
+message MotionProfile {
+  int64 profile = 1;
+  double speed = 2;
+  double speed2 = 3;
+  double acceleration = 4;
+  double deceleration = 5;
+  double acceleration_ramp = 6;
+  double deceleration_ramp = 7;
+  double in_range = 8;
+  bool straight = 9;
+}
+
+// `PF400Params`: the arm's link lengths and tool.
+message KinematicParameters {
+  double l1 = 1;
+  double l2 = 2;
+  double gripper_length = 3;
+  double gripper_z_offset = 4;
+  double eps = 5;
+}
+
+// `StereoParameters`.
+message StereoParameters {
+  string process_name = 1;
+  string tool_name = 2;
+  double optimum_distance_to_target = 3;
+  double optimum_window_scale_factor = 4;
+  int64 wrist_axis_index = 5;
+  int64 aruco1_number = 6;
+  int64 aruco2_number = 7;
+  double distance_between_arucos = 8;
+  double max_aruco_distance_estimate_error = 9;
+  int64 wait_msecs = 10;
+}
+
+// A camera: by where it is mounted, or by its number.
+message Camera {
+  oneof camera {
+    CameraName name = 1;
+    int64 number = 2;
+  }
+}
+
+// A value for the controller's parameter database: text is quoted, the rest is not.
+message ParameterValue {
+  oneof value {
+    double number = 1;
+    int64 integer = 2;
+    string text = 3;
+    bool flag = 4;
+  }
+}
+
+// An image, as a numpy array: its bytes, C order.
+message Image {
+  bytes data = 1;
+  repeated int64 shape = 2;
+  // numpy's name for the element type: "uint8".
+  string dtype = 3;
+}
+
+// One result the vision server sent.
+message VisionServerResult {
+  string name = 1;
+  bytes data = 2;
+}
+
+message StringList {
+  repeated string values = 1;
+}
+
+message IntList {
+  repeated int64 values = 1;
+}
+
+// A number that may be None where the default is not: set with `value` unset is None.
+message OptionalDouble {
+  optional double value = 1;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+  // What it is doing now: "park", "rail", "approach", "pick up", "leave", "drop".
+  string step = 3;
+}

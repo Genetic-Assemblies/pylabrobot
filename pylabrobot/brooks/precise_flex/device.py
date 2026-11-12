@@ -6,7 +6,7 @@ the carriage, the arm, the gripper - is hung off it by the driver, from a config
 
 import logging
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from pylabrobot.brooks.precise_flex.driver.features.arm import PreciseFlexArm
 from pylabrobot.brooks.precise_flex.driver.features.gripper import PreciseFlexGripper
@@ -20,6 +20,10 @@ from pylabrobot.brooks.precise_flex.resource_model.pf400_manipulator import (
 )
 from pylabrobot.resources.coordinate import Coordinate
 from pylabrobot.resources.resource import Resource
+from pylabrobot.resources.server.client import ResourceServer
+
+if TYPE_CHECKING:
+  from pylabrobot.brooks.precise_flex.server.client import PreciseFlexServer
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +114,8 @@ def PreciseFlex400(
   declared_configuration_json: Optional[str] = None,
   driver: Optional[PreciseFlexDriver] = None,
   name: str = "PreciseFlex400",
+  precise_flex_server: Union[str, "PreciseFlexServer", None] = None,
+  resource_server: Union[str, ResourceServer, None] = None,
 ) -> PreciseFlexDevice:
   """A PreciseFlex 400: its base plate, for the driver to build the arm on.
 
@@ -125,13 +131,42 @@ def PreciseFlex400(
       builds. Defaults to `RECORDING_PF400`. A driver given outright brings its own.
     driver: the driver to drive the device through.
     name: what to call this one.
+    precise_flex_server: a PreciseFlex server, or its URL. Given one, it is the device that server
+      serves instead, driven as this one would be: the server decides what it is.
+    resource_server: with `precise_flex_server`, the resource server the PreciseFlex server keeps
+      the device's resources in, or its URL; without one they are not reachable here.
 
   Returns:
     The device.
 
   Raises:
-    ValueError: If neither a driver nor simulation is given, since there is then nothing to drive.
+    ValueError: If neither a driver nor simulation is given, since there is then nothing to drive;
+      or if given a PreciseFlex server and what the server decides as well, or a resource server
+      without a PreciseFlex server.
   """
+  if precise_flex_server is not None:
+    decided = [
+      argument
+      for argument, value in (
+        ("simulation", simulation),
+        ("declared_configuration_json", declared_configuration_json),
+        ("driver", driver),
+      )
+      if value
+    ]
+    if decided:
+      raise ValueError(
+        f"a served PreciseFlex is what its server makes it: {', '.join(decided)} cannot be given "
+        "with precise_flex_server"
+      )
+    from pylabrobot.brooks.precise_flex.server.client import remote_device
+
+    return remote_device(precise_flex_server, resource_server, name, PreciseFlex400.__name__)
+  if resource_server is not None:
+    raise ValueError(
+      "resource_server is for a served PreciseFlex: its server keeps the resources, given "
+      "--resource-server"
+    )
   if driver is None:
     if not simulation:
       raise ValueError("pass a driver, or `simulation=True` to build a simulated one")
