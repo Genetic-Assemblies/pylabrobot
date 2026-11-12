@@ -2,7 +2,7 @@ import unittest
 from typing import Tuple
 from unittest.mock import AsyncMock
 
-from pylabrobot.azenta.xpeel import HAS_SERIAL, XPeel
+from pylabrobot.azenta.xpeel.xpeel import HAS_SERIAL, XPeel
 
 
 def _xpeel(*lines: bytes) -> Tuple[XPeel, AsyncMock]:

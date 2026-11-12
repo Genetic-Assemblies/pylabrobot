@@ -1,0 +1,231 @@
+syntax = "proto3";
+
+// An XPeel server: the Azenta XPeel seal removers it holds, each called by its name. The calls are
+// `XPeel`'s methods, each argument a field named as the argument is; an unset optional field is an
+// argument not given, so its default applies. A call that returns the lines the peeler answered
+// with returns them as `XPeel.send_command` does: each stripped, a ready line with what its code
+// means after it in brackets.
+package pylabrobot.azenta.xpeel.server.v1;
+
+// The exception a call raised, carried as a detail of the Connect error so the client raises the
+// same class. A class not listed goes as the nearest one it derives from.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_KEY = 4;  // KeyError
+  ERROR_KIND_TYPE = 5;  // TypeError
+  ERROR_KIND_NOT_IMPLEMENTED = 6;  // NotImplementedError
+  ERROR_KIND_CONNECTION = 7;  // ConnectionError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What it was raised with.
+  string message = 2;
+  // Its class's name, for a class that went as the nearest one listed.
+  string type_name = 3;
+}
+
+// The lines the peeler answered a command with.
+message Lines {
+  repeated string lines = 1;
+}
+
+// What `XPeel.seal_check` returns.
+enum SealCheck {
+  SEAL_CHECK_UNSPECIFIED = 0;
+  SEAL_CHECK_SEAL_DETECTED = 1;  // "seal_detected"
+  SEAL_CHECK_NO_SEAL = 2;  // "no_seal"
+  SEAL_CHECK_PLATE_NOT_DETECTED = 3;  // "plate_not_detected"
+}
+
+// What `XPeel.request_tape_remaining` returns: how many more seals, each a multiple of ten.
+message TapeRemaining {
+  // Seals left on the supply roll.
+  int32 supply_remaining = 1;
+  // Seals there is room for on the take-up spool.
+  int32 takeup_remaining = 2;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done, with what it returned. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+  // What the call returned, on `done`.
+  oneof result {
+    Lines lines = 3;
+    SealCheck seal_check = 4;
+    TapeRemaining tape_remaining = 5;
+  }
+}
+
+// One peeler the server holds.
+message Peeler {
+  string name = 1;
+  // `XPeel.port`: the serial port it is on.
+  string port = 2;
+  // `XPeel.response_timeout`: how long it waits for an answer, in seconds.
+  double response_timeout = 3;
+}
+
+message DescribeRequest {
+}
+
+message DescribeResponse {
+  repeated Peeler peelers = 1;
+}
+
+message SetupRequest {
+  string name = 1;
+}
+
+message SetupResponse {
+}
+
+message StopRequest {
+  string name = 1;
+}
+
+message StopResponse {
+}
+
+message SendCommandRequest {
+  string name = 1;
+  // As written to the serial port, without its line ending: `*stat` say.
+  string cmd = 2;
+  optional bool expect_ack = 3;
+  optional bool wait_for_ready = 4;
+  optional bool clear_buffer = 5;
+}
+
+message RequestStatusRequest {
+  string name = 1;
+}
+
+// The three codes of the peeler's status.
+message RequestStatusResponse {
+  int32 first = 1;
+  int32 second = 2;
+  int32 third = 3;
+}
+
+message RequestVersionRequest {
+  string name = 1;
+}
+
+message RequestVersionResponse {
+  repeated string lines = 1;
+}
+
+message ResetRequest {
+  string name = 1;
+}
+
+message SealCheckRequest {
+  string name = 1;
+}
+
+message RequestTapeRemainingRequest {
+  string name = 1;
+}
+
+message EnablePlateCheckRequest {
+  string name = 1;
+  optional bool enabled = 2;
+}
+
+message RequestSealSensorStatusRequest {
+  string name = 1;
+}
+
+message SetSealThresholdUpperRequest {
+  string name = 1;
+  // 0 to 999.
+  int32 value = 2;
+}
+
+message SetSealThresholdLowerRequest {
+  string name = 1;
+  // 0 to 999.
+  int32 value = 2;
+}
+
+message MoveConveyorOutRequest {
+  string name = 1;
+}
+
+message MoveConveyorInRequest {
+  string name = 1;
+}
+
+message MoveElevatorDownRequest {
+  string name = 1;
+}
+
+message MoveElevatorUpRequest {
+  string name = 1;
+}
+
+message AdvanceTapeRequest {
+  string name = 1;
+}
+
+message PeelRequest {
+  string name = 1;
+  // In millimetres: -2, 0, 2 or 4.
+  optional int32 begin_location = 2;
+  optional bool fast = 3;
+  // In seconds: 2.5, 5.0, 7.5 or 10.0.
+  optional double adhere_time = 4;
+}
+
+message RestartRequest {
+  string name = 1;
+}
+
+// A call that waits on the peeler streams `Progress` and finishes on the server even if the client
+// goes away, except a call that only asks (`SealCheck`, `RequestTapeRemaining`,
+// `RequestSealSensorStatus`), which is dropped. A peeler takes one call at a time: a call waits
+// for the one before it to finish.
+service XPeelService {
+  // The peelers the server holds.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+  // Open the serial port.
+  rpc Setup(SetupRequest) returns (SetupResponse);
+  // Close the serial port.
+  rpc Stop(StopRequest) returns (StopResponse);
+  // Write a command, as it is, and read the peeler's answer; the lines it answered with.
+  rpc SendCommand(SendCommandRequest) returns (stream Progress);
+  // The three codes of the peeler's status.
+  rpc RequestStatus(RequestStatusRequest) returns (RequestStatusResponse);
+  // The peeler's firmware version, as the lines it answered with.
+  rpc RequestVersion(RequestVersionRequest) returns (RequestVersionResponse);
+  // Reset the peeler.
+  rpc Reset(ResetRequest) returns (stream Progress);
+  // Whether the plate on the stage is sealed.
+  rpc SealCheck(SealCheckRequest) returns (stream Progress);
+  // How many more seals the tape has, and room for.
+  rpc RequestTapeRemaining(RequestTapeRemainingRequest) returns (stream Progress);
+  // Turn checking for a plate before a peel on or off.
+  rpc EnablePlateCheck(EnablePlateCheckRequest) returns (stream Progress);
+  // The seal sensor's reading.
+  rpc RequestSealSensorStatus(RequestSealSensorStatusRequest) returns (stream Progress);
+  // Set the reading above which a seal is detected.
+  rpc SetSealThresholdUpper(SetSealThresholdUpperRequest) returns (stream Progress);
+  // Set the reading below which no seal is detected.
+  rpc SetSealThresholdLower(SetSealThresholdLowerRequest) returns (stream Progress);
+  rpc MoveConveyorOut(MoveConveyorOutRequest) returns (stream Progress);
+  rpc MoveConveyorIn(MoveConveyorInRequest) returns (stream Progress);
+  rpc MoveElevatorDown(MoveElevatorDownRequest) returns (stream Progress);
+  rpc MoveElevatorUp(MoveElevatorUpRequest) returns (stream Progress);
+  // Wind the tape on.
+  rpc AdvanceTape(AdvanceTapeRequest) returns (stream Progress);
+  // Peel the seal off the plate on the stage.
+  rpc Peel(PeelRequest) returns (stream Progress);
+  // Restart the peeler, homing it.
+  rpc Restart(RestartRequest) returns (stream Progress);
+}

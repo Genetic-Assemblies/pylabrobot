@@ -88,7 +88,7 @@ generate-rpc:
 		pylabrobot/roche/lightcycler/server/v1/*.proto
 	$(BIN)python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. \
 		--connectrpc_out=. --connectrpc_opt=protobuf=google \
-		pylabrobot/azenta/a4s/server/v1/*.proto
+		pylabrobot/azenta/a4s/server/v1/*.proto pylabrobot/azenta/xpeel/server/v1/*.proto
 
 clear-pyc:
 	find . -name "*.pyc" | xargs rm
