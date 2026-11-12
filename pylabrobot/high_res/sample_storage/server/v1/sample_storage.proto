@@ -1,0 +1,383 @@
+syntax = "proto3";
+
+// A HighRes sample store (a TundraStore, a SteriStore, an AmbiStore) served over Connect. The calls
+// are `HighResSampleStorage`'s public coroutines and those of its `environment`, each argument a
+// field named as the argument is; an unset optional field is an argument not given, so its default
+// applies. Units are PLR's: Celsius, and fractions for humidity and gas concentrations.
+//
+// The store is a resource tree: its stackers (each a plate carrier of slots), its nests (the
+// transfer stations, `tray_index` from 0), and the plates in them. The server keeps that tree; a
+// plate, slot or nest is named by a `ResourceRef` by name, resolved in it: `NameRef{root: <store
+// name>, name: <resource name>}`, or with `root` empty. `Describe` gives every name. A stacker's
+// slots are named `<store>_stacker_<n>_slot_<slot>` when the store reads its stackers from the
+// device, slots from 1 as the device numbers them.
+//
+// Regenerate with `make generate-rpc`.
+package pylabrobot.high_res.sample_storage.server.v1;
+
+import "pylabrobot/resources/server/v1/types.proto";
+
+message Empty {}
+
+// ============================================================================================
+// What a client keeps
+// ============================================================================================
+
+// A slot of a stacker.
+message Site {
+  string name = 1;
+  // As the device numbers it, from 1.
+  int32 slot = 2;
+  // Its height: the tallest plate it takes, in mm.
+  double size_z = 3;
+  // The name of the plate in it.
+  optional string plate = 4;
+}
+
+message Stacker {
+  // As the device numbers it, from 1.
+  int32 number = 1;
+  string name = 2;
+  // The plate carrier it is, as PLR serializes one (JSON), without its plates.
+  string definition = 3;
+  // Bottom first.
+  repeated Site sites = 4;
+}
+
+message Nest {
+  // How a call names it, from 0.
+  int32 tray_index = 1;
+  // As the device numbers it, from 1.
+  int32 number = 2;
+  string name = 3;
+  optional string plate = 4;
+}
+
+// A plate move that failed part way: where the plate is is not known until it is resolved.
+message UnresolvedTransfer {
+  string plate = 1;
+  // The nest or slot it was moved from and to, by name.
+  string source = 2;
+  string destination = 3;
+  string command = 4;
+  string error_type = 5;
+  string error_message = 6;
+}
+
+message Description {
+  // The store's name: the root of its resource tree.
+  string name = 1;
+  // The model it is configured as: "TundraStore", say.
+  string model = 2;
+  // In seconds.
+  double read_timeout = 3;
+  double motion_timeout = 4;
+  // Empty until setup has read them from the device, when it was not given them.
+  repeated Stacker stackers = 5;
+  // Empty until setup.
+  repeated Nest nests = 6;
+  optional UnresolvedTransfer unresolved_transfer = 7;
+  // The environment as the store last read it; unset for a store with no environment control.
+  optional Environment environment = 8;
+}
+
+// A plate as the server makes one it does not hold.
+message PlateDefinition {
+  string name = 1;
+  // As PLR serializes it (JSON). Empty: a plate of this name on an SBS footprint, `size_z` high.
+  string definition = 2;
+  // In mm; for a plate with no definition.
+  optional double size_z = 3;
+}
+
+// What was done to the tree by hand: a plate put on a nest or in a slot, or taken away. A plate
+// the store holds elsewhere is moved here; one it does not hold is made.
+message Placement {
+  // The nest or slot.
+  pylabrobot.resources.server.v1.ResourceRef holder = 1;
+  // The plate it holds now; unset when it holds none.
+  optional PlateDefinition plate = 2;
+}
+
+message PlacePlatesRequest {
+  // Applied in order.
+  repeated Placement placements = 1;
+}
+
+// ============================================================================================
+// What the device reports
+// ============================================================================================
+
+message Version {
+  optional string product_name = 1;
+  optional string serial_number = 2;
+  optional string firmware_version = 3;
+  optional string firmware_build = 4;
+  // Every line, by the key the device gives it.
+  map<string, string> raw = 5;
+}
+
+message EnvironmentParameter {
+  string name = 1;
+  double current = 2;
+  optional double setpoint = 3;
+  optional double limit = 4;
+}
+
+// By channel: "TEMP", "RH", "CO2", "O2", "TANK1", ...
+message Environment {
+  map<string, EnvironmentParameter> parameters = 1;
+}
+
+message AxisPositions {
+  map<string, double> positions = 1;
+}
+
+enum DoorState {
+  DOOR_STATE_UNSPECIFIED = 0;
+  DOOR_STATE_OPEN = 1;
+  DOOR_STATE_CLOSED = 2;
+  DOOR_STATE_OPENING = 3;
+  DOOR_STATE_CLOSING = 4;
+  DOOR_STATE_UNKNOWN = 5;
+}
+
+message Doors {
+  // By the device's name for the door.
+  map<string, DoorState> doors = 1;
+}
+
+enum NestState {
+  NEST_STATE_UNSPECIFIED = 0;
+  NEST_STATE_CLEAR = 1;
+  NEST_STATE_OCCUPIED = 2;
+  NEST_STATE_UNKNOWN = 3;
+}
+
+message NestStates {
+  // By nest number, from 1.
+  map<int32, NestState> nests = 1;
+}
+
+message Flag {
+  bool value = 1;
+}
+
+message Value {
+  double value = 1;
+}
+
+message Lines {
+  repeated string lines = 1;
+}
+
+message NestRequest {
+  // From 1.
+  int32 nest = 1;
+}
+
+message StackerDimensions {
+  int32 stacker = 1;
+  double zero_offset = 2;
+  double slot_height = 3;
+  int32 slot_count = 4;
+}
+
+message StackerDimensionsList {
+  repeated StackerDimensions stackers = 1;
+}
+
+message Pressures {
+  map<string, double> pressures = 1;
+}
+
+// ============================================================================================
+// Calls
+// ============================================================================================
+
+message SetupRequest {
+  optional bool home = 1;
+}
+
+message RequestStackerBarcodesRequest {
+  oneof stacker {
+    int32 number = 1;
+    // Every stacker: the device's "all".
+    bool all = 2;
+  }
+  optional int32 slot = 3;
+}
+
+enum TransferLocation {
+  TRANSFER_LOCATION_UNSPECIFIED = 0;
+  TRANSFER_LOCATION_SOURCE = 1;
+  TRANSFER_LOCATION_DESTINATION = 2;
+  TRANSFER_LOCATION_UNASSIGNED = 3;
+}
+
+message ResolveUnresolvedTransferRequest {
+  TransferLocation location = 1;
+}
+
+message PlateName {
+  string plate = 1;
+}
+
+message FetchPlateToLoadingTrayRequest {
+  pylabrobot.resources.server.v1.ResourceRef plate = 1;
+  int32 tray_index = 2;
+}
+
+enum SiteChoice {
+  SITE_CHOICE_UNSPECIFIED = 0;
+  SITE_CHOICE_SMALLEST = 1;
+  SITE_CHOICE_RANDOM = 2;
+}
+
+message TakeInPlateRequest {
+  int32 tray_index = 1;
+  // Unset: the smallest free slot the plate fits in.
+  oneof site {
+    pylabrobot.resources.server.v1.ResourceRef holder = 2;
+    SiteChoice choice = 3;
+  }
+}
+
+message StorePlateRequest {
+  pylabrobot.resources.server.v1.ResourceRef plate = 1;
+  pylabrobot.resources.server.v1.ResourceRef site = 2;
+  int32 tray_index = 3;
+}
+
+message TransferPlateBetweenNestsRequest {
+  int32 source_tray_index = 1;
+  int32 destination_tray_index = 2;
+}
+
+message Temperature {
+  double temperature = 1;
+}
+
+message Humidity {
+  double humidity = 1;
+}
+
+message Co2 {
+  double co2 = 1;
+}
+
+message O2 {
+  double o2 = 1;
+}
+
+// How far a long call has got, sent every few seconds while it runs, and once more when it is
+// done, with what it returned. A stream that ends without `done` is a call that did not finish.
+message Progress {
+  // Seconds since it started.
+  double elapsed = 1;
+  bool done = 2;
+  oneof result {
+    // The name of the plate it moved.
+    string plate = 3;
+    bool value = 4;
+    Lines lines = 5;
+  }
+}
+
+service SampleStorageService {
+  // The store as the server has it: its stackers, nests and the plates in them.
+  rpc Describe(Empty) returns (Description);
+  // What a client did to the tree by hand, as it would in this process.
+  rpc PlacePlates(PlacePlatesRequest) returns (Empty);
+  // A plate the store holds, as PLR serializes it.
+  rpc GetPlate(pylabrobot.resources.server.v1.ResourceRef) returns (PlateDefinition);
+
+  // A long call that moves the store finishes on the server even if its client goes away.
+  rpc Setup(SetupRequest) returns (stream Progress);
+  rpc Stop(Empty) returns (Empty);
+
+  rpc RequestVersion(Empty) returns (Version);
+  rpc RequestEnvironment(Empty) returns (Environment);
+  rpc RequestAxisPositions(Empty) returns (AxisPositions);
+  rpc RequestIsHomed(Empty) returns (Flag);
+  rpc RequestDoorStatus(Empty) returns (Doors);
+  rpc RequestNestStatus(Empty) returns (NestStates);
+  rpc RequestSpatulaIsHolding(Empty) returns (Flag);
+  rpc RequestNestIsHolding(NestRequest) returns (Flag);
+  rpc RequestStackerDimensions(Empty) returns (StackerDimensionsList);
+  // The settings file's lines, `NAME = value`.
+  rpc RequestSettings(Empty) returns (Lines);
+  // Ends with the lines it read, in `lines`.
+  rpc RequestStackerBarcodes(RequestStackerBarcodesRequest) returns (stream Progress);
+
+  rpc Home(Empty) returns (stream Progress);
+  rpc RequestIsParked(Empty) returns (Flag);
+  // Ends with whether it parked, in `value`.
+  rpc Recover(Empty) returns (stream Progress);
+  rpc OpenAllDoors(Empty) returns (stream Progress);
+  rpc CloseAllDoors(Empty) returns (stream Progress);
+  rpc ClearAbort(Empty) returns (Empty);
+
+  rpc ResolveUnresolvedTransfer(ResolveUnresolvedTransferRequest) returns (PlateName);
+  // Each ends with the name of the plate it moved, in `plate`.
+  rpc FetchPlateToLoadingTray(FetchPlateToLoadingTrayRequest) returns (stream Progress);
+  rpc TakeInPlate(TakeInPlateRequest) returns (stream Progress);
+  rpc StorePlate(StorePlateRequest) returns (stream Progress);
+  rpc TransferPlateBetweenNests(TransferPlateBetweenNestsRequest) returns (stream Progress);
+
+  // Its `environment`: an AmbiStore has none, and refuses these.
+  rpc Refresh(Empty) returns (Environment);
+  rpc RequestCurrentTemperature(Empty) returns (Value);
+  rpc RequestTargetTemperature(Empty) returns (Value);
+  rpc SetTemperature(Temperature) returns (Empty);
+  rpc StartTemperatureControl(Empty) returns (Empty);
+  rpc StopTemperatureControl(Empty) returns (Empty);
+  rpc RequestCurrentHumidity(Empty) returns (Value);
+  rpc RequestTargetHumidity(Empty) returns (Value);
+  rpc SetHumidity(Humidity) returns (Empty);
+  rpc StartHumidityControl(Empty) returns (Empty);
+  rpc StopHumidityControl(Empty) returns (Empty);
+  rpc RequestCurrentCo2(Empty) returns (Value);
+  rpc RequestTargetCo2(Empty) returns (Value);
+  rpc SetCo2(Co2) returns (Empty);
+  rpc StartCo2Control(Empty) returns (Empty);
+  rpc StopCo2Control(Empty) returns (Empty);
+  rpc RequestCurrentO2(Empty) returns (Value);
+  rpc RequestTargetO2(Empty) returns (Value);
+  rpc SetO2(O2) returns (Empty);
+  rpc StartO2Control(Empty) returns (Empty);
+  rpc StopO2Control(Empty) returns (Empty);
+  rpc RequestTankPressures(Empty) returns (Pressures);
+}
+
+// ============================================================================================
+// How a call fails
+// ============================================================================================
+
+// The exception a call raised, carried as a detail of the Connect error. The client raises the
+// class `type_name` names when it knows it, and otherwise the one `kind` names.
+enum ErrorKind {
+  ERROR_KIND_UNSPECIFIED = 0;  // Exception
+  ERROR_KIND_VALUE = 1;  // ValueError
+  ERROR_KIND_RUNTIME = 2;  // RuntimeError
+  ERROR_KIND_TIMEOUT = 3;  // TimeoutError
+  ERROR_KIND_KEY = 4;  // KeyError
+  ERROR_KIND_TYPE = 5;  // TypeError
+  ERROR_KIND_NOT_IMPLEMENTED = 6;  // NotImplementedError
+  ERROR_KIND_CONNECTION = 7;  // ConnectionError
+  ERROR_KIND_ATTRIBUTE = 8;  // AttributeError
+}
+
+message Error {
+  ErrorKind kind = 1;
+  // What `str()` of it says.
+  string message = 2;
+  // Its class's name: "PlateNotFoundError", say.
+  string type_name = 3;
+  // The device's errors: the command, its error lines, and for a protocol error the response and
+  // what was wrong with it.
+  string command = 4;
+  repeated string error_lines = 5;
+  string response = 6;
+  string detail = 7;
+}

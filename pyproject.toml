@@ -132,6 +132,9 @@ extend-exclude = [
   "pylabrobot/brooks/precise_flex/server/v1/*_pb2.pyi",
   "pylabrobot/brooks/precise_flex/server/v1/*_connect.py",
   "pylabrobot/brooks/precise_flex/server/generated_*.py",
+  "pylabrobot/high_res/sample_storage/server/v1/*_pb2.py",
+  "pylabrobot/high_res/sample_storage/server/v1/*_pb2.pyi",
+  "pylabrobot/high_res/sample_storage/server/v1/*_connect.py",
 ]
 
 [tool.ruff.lint.per-file-ignores]
