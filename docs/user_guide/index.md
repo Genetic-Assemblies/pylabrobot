@@ -49,6 +49,7 @@ molecular_devices/index
 opentrons/index
 qinstruments/index
 revvity/index
+roche/index
 sartorius/index
 thermo_fisher/index
 ufactory/index
